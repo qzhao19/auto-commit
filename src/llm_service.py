@@ -245,20 +245,3 @@ class LLMService:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
-
-
-if __name__ == "__main__":
-    diff_content = """
-    diff --git a/src/utils.py b/src/utils.py
-    index abc123..def456 100644
-    --- a/src/utils.py
-    +++ b/src/utils.py
-    @@ -1,5 +1,5 @@
-    def calculate_sum(a, b):
-    -    return a + b
-    +    return a + b  # Fixed addition
-    """
-    local_llm = LLMService(model="qwen2.5:0.5b")
-    commit_msg = local_llm.generate_commit_message(diff_content, context="Fixed bug")
-
-    print(commit_msg)
