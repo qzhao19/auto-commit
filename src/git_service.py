@@ -15,7 +15,7 @@ class GitService:
 
     def __init__(self, git_repo_path: Optional[str] = None):
         """
-        Initialize the GitChangeAnalyzer.
+        Initialize the GitService.
         
         Args:
             git_repo_path: Path to the Git repository (default: current directory)
