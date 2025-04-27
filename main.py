@@ -123,7 +123,6 @@ def main():
         description="Generate commit messages using AI based on git changes"
     )
     
-    # 基本参数
     parser.add_argument(
         "--repo",
         type=str,
