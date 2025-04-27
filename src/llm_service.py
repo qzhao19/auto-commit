@@ -2,10 +2,12 @@ import re
 import os
 import json
 import httpx
+import jinja2
 import logging
 import platform
 import requests
 
+from pathlib import Path
 from pydantic import BaseModel
 from typing import Optional, Union, Dict, Any, List
 
@@ -52,8 +54,7 @@ class LLMService:
         self,
         model: str = "llama2",
         host: Optional[str] = None,
-        system_prompt: Optional[str] = None,
-        template: Optional[str] = None,
+        system_prompt_template: Optional[str] = None,
         timeout: int = 60,
         openai_api_key: Optional[str] = None,
         openai_base_url: Optional[str] = None,
@@ -65,21 +66,25 @@ class LLMService:
         Args:
             model: The model to use for generating commit messages
             host: The host URL of the LLM service (e.g., "http://localhost:11434")
-            system_prompt: System prompt to guide the model's behavior
-            template: Template for formatting the commit message
+            system_prompt_template: System prompt to guide the model's behavior
             timeout: Timeout for requests in seconds
             openai_api_key: API key for OpenAI services (optional)
             openai_base_url: Base URL for OpenAI-compatible API (optional)
             **kwargs: Additional arguments to pass to the HTTP client
         """
         self.model = model
-        self.system_prompt = system_prompt or (
-            "You are an expert software developer. "
-            "Generate concise, clear commit messages based on the provided diff content. "
-            "Follow conventional commit style when appropriate: "
-            "<type>(<scope>): <subject>\n\n<body>\n\n<footer>"
+        
+        self.template_env = jinja2.Environment(
+            loader=jinja2.FileSystemLoader(Path("src/template")),
+            autoescape=False,
+            trim_blocks=True,
+            lstrip_blocks=True
         )
-        self.template = template
+        
+        # Load system prompt template
+        self.system_prompt_template = self.template_env.get_template(
+            system_prompt_template or "system_prompt.j2"
+        )
         self.timeout = timeout
         self.openai_api_key = openai_api_key or os.getenv('OPENAI_API_KEY')
         self.openai_base_url = openai_base_url or os.getenv('OPENAI_API_BASE', 'https://api.openai.com/v1')
@@ -96,6 +101,18 @@ class LLMService:
             **kwargs
         )
 
+    def _render_system_prompt(self,
+                              diff_content: str,
+                              file_changes: Dict[str, List[str]]
+                              ) -> str:
+        """Render system prompt from template"""
+        return self.system_prompt_template.render(
+            diff_content=diff_content,
+            new_files=file_changes.get('new_files', []),
+            modified_files=file_changes.get('modified_files', []),
+            deleted_files=file_changes.get('deleted_files', [])
+        )
+
     def _parse_host(self, host: str) -> str:
         """Parse and normalize the host URL"""
         if not host.startswith(('http://', 'https://')):
@@ -110,14 +127,30 @@ class LLMService:
         message = message.replace('`', '')          # Remove all backticks
         return message.strip()
 
-    def generate_commit_message(
-        self,
-        diff_content: str,
-        context: Optional[str] = None,
-        file_changes: Optional[Dict[str, List[str]]] = None,
-        stream: bool = False,
-        **options
-    ) -> Union[str, GenerateResponse]:
+    def _build_user_prompt(self,
+                           diff_content: str, 
+                           context: Optional[str] = None,
+                           file_changes: Dict[str, List[str]] = None) -> str:
+        user_prompt = []
+    
+        if context:
+            user_prompt.append(f"Additional Context: {context}")
+
+        remaining_diff = diff_content[15000:]
+        if remaining_diff:
+            user_prompt.append(f"Full Diff Content:\n{remaining_diff}")
+        
+        user_prompt.append("Based on the above system instructions and this additional context, "
+                            "generate the concise, clear and final commit message in English.")
+        return "\n\n".join(user_prompt)
+
+    def generate_commit_message(self,
+                                diff_content: str,
+                                context: Optional[str] = None,
+                                file_changes: Optional[Dict[str, List[str]]] = None,
+                                stream: bool = False,
+                                **options
+                                ) -> Union[str, GenerateResponse]:
         """
         Generate a commit message based on the provided diff content.
         
@@ -136,22 +169,24 @@ class LLMService:
             ConnectionError: If unable to connect to the LLM service
             ResponseError: If the LLM service returns an error
         """
-        # Combine the diff content with any additional context
-        prompt = f"Diff content:\n{diff_content}\n\n"
-        if context:
-            prompt += f"Additional context:\n{context}\n\n"
-        if file_changes:
-            prompt += f"File changes:\n"
-            for change_type, files in file_changes.items():
-                if files:
-                    prompt += f"{change_type.capitalize()} files: {', '.join(files)}\n"
-        prompt += "Generate a concise, clear english commit message based on the above changes."
 
-        # Use OpenAI API if model starts with 'gpt' or OpenAI is explicitly requested
-        if self.model.startswith('gpt') or self.openai_api_key:
-            return self._generate_with_openai(prompt, diff_content)
+        self.system_prompt = self._render_system_prompt(
+            diff_content=diff_content,
+            file_changes=file_changes
+        )
+        
+        # build user's prompt according to some specific content
+        user_prompt = self._build_user_prompt(
+            diff_content=diff_content,
+            context=context,
+            file_changes=file_changes
+        )
+
+        # Use OpenAI API if model starts with 'gpt' and OpenAI is explicitly requested
+        if self.model.startswith('gpt') and self.openai_api_key:
+            return self._generate_with_openai(user_prompt, diff_content)
         else:
-            return self._generate_with_local_llm(prompt, stream, **options)
+            return self._generate_with_local_llm(user_prompt, stream, **options)
 
     def _generate_with_local_llm(
         self,
@@ -167,7 +202,6 @@ class LLMService:
                     'model': self.model,
                     'prompt': prompt,
                     'system': self.system_prompt,
-                    'template': self.template,
                     'stream': stream,
                     'options': options,
                 }
@@ -187,11 +221,7 @@ class LLMService:
         except json.JSONDecodeError as e:
             raise ResponseError("Invalid JSON response from LLM service") from e
 
-    def _generate_with_openai(
-        self,
-        prompt: str,
-        diff_content: str
-    ) -> str:
+    def _generate_with_openai(self, prompt: str) -> str:
         """Generate commit message using OpenAI API"""
         if not self.openai_api_key:
             logger.warning('OPENAI_API_KEY environment variable not set, cannot call API')
