@@ -13,14 +13,14 @@ class GitService:
     - Categorize and analyze file status changes
     """
 
-    def __init__(self, git_repo_path: Optional[str] = None):
+    def __init__(self, repo_path: Optional[str] = None):
         """
         Initialize the GitService.
         
         Args:
-            git_repo_path: Path to the Git repository (default: current directory)
+            repo_path: Path to the Git repository (default: current directory)
         """
-        self.git_repo_path = git_repo_path
+        self.repo_path = repo_path
 
     def get_staged_changes_diff(self,
                                 extra_args: Optional[List[str]] = None,
@@ -40,8 +40,8 @@ class GitService:
         """
         base_cmd = ['git']
         
-        if self.git_repo_path:
-            base_cmd.extend(['-C', self.git_repo_path])
+        if self.repo_path:
+            base_cmd.extend(['-C', self.repo_path])
         
         diff_cmd = base_cmd + ['diff', '--staged']
         
@@ -84,8 +84,8 @@ class GitService:
             Dictionary with categorized files or None if error occurs
         """
         base_cmd = ['git']
-        if self.git_repo_path:
-            base_cmd.extend(['-C', self.git_repo_path])
+        if self.repo_path:
+            base_cmd.extend(['-C', self.repo_path])
         
         status_cmd = base_cmd + ['status', f'--porcelain={porcelain_version}']
         if include_untracked:
