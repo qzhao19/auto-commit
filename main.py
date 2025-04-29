@@ -9,6 +9,8 @@ from src.llm_service import LLMService, GenerateResponse
 from src.git_service import GitService
 from src.logger import setup_logging
 
+setup_logging()
+
 logger = logging.getLogger(__name__)
 
 class CommitMessageGenerator:
@@ -39,9 +41,11 @@ class CommitMessageGenerator:
             timeout: Request timeout in seconds.
             **llm_kwargs: Additional parameters passed to LLMService.
         """
-        self.git_svc = GitService(
-            repo_path=str(repo_path) if repo_path else None
-        )
+
+        if not repo_path:
+            logger.error("Param 'repo_path' is mandatory.")
+
+        self.git_svc = GitService(repo_path=str(repo_path))
         
         self.llm_svc = LLMService(
             model=model,
@@ -83,7 +87,8 @@ class CommitMessageGenerator:
             # get git diff
             diff = self.git_svc.get_staged_changes_diff(**diff_options)
             if not diff.strip():
-                raise ValueError("No staged changes detected (empty diff)")
+                logger.error("No staged changes detected (empty diff)")
+                raise
                 
             changes = self.git_svc.get_status_changes()
             
@@ -126,6 +131,7 @@ def main():
     parser.add_argument(
         "--repo",
         type=str,
+        required=True,
         help="Git repository path (default: current directory)"
     )
     parser.add_argument(
@@ -155,7 +161,6 @@ def main():
     )
     
     args = parser.parse_args()
-    setup_logging()
     
     try:
         generator = CommitMessageGenerator(
@@ -166,12 +171,8 @@ def main():
             timeout=args.timeout
         )
         message = generator.generate(context=args.context)
+        sys.stdout.write(message)
 
-        print("\nGenerated commit message:")
-        print("-----------------------")
-        print(message)
-        print("-----------------------")
-        
     except ValueError as e:
         logger.error(f"Invalid argument: {e}")
         sys.exit(2)
