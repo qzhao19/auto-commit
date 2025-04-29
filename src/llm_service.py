@@ -11,6 +11,8 @@ from pathlib import Path
 from pydantic import BaseModel
 from typing import Optional, Union, Dict, Any, List
 
+PROJECT_ROOT = Path(__file__).parent.absolute()
+
 logger = logging.getLogger(__name__)
 
 class GenerateRequest(BaseModel):
@@ -73,9 +75,9 @@ class LLMService:
             **kwargs: Additional arguments to pass to the HTTP client
         """
         self.model = model
-        
+
         self.template_env = jinja2.Environment(
-            loader=jinja2.FileSystemLoader(Path("src/template")),
+            loader=jinja2.FileSystemLoader(PROJECT_ROOT / "template"),
             autoescape=False,
             trim_blocks=True,
             lstrip_blocks=True
@@ -141,7 +143,8 @@ class LLMService:
             user_prompt.append(f"Full Diff Content:\n{remaining_diff}")
         
         user_prompt.append("Based on the above system instructions and this additional context, "
-                            "generate the concise, clear and final commit message in English.")
+                           "generate the concise, clear and final commit message in English. "
+                           "IMPORTANT: The commit message MUST be within 20 words.")
         return "\n\n".join(user_prompt)
 
     def generate_commit_message(self,
