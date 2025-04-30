@@ -1,5 +1,6 @@
 import os
 import sys
+import dotenv
 import logging
 import argparse
 
@@ -13,57 +14,48 @@ setup_logging()
 
 logger = logging.getLogger(__name__)
 
+dotenv.load_dotenv()
+
 class CommitMessageGenerator:
     """Coordinate with GitService and LLMService to generate a commit 
        message that complies with the specifications.
     """
-    def __init__(
-        self,
-        repo_path: Optional[Union[str, Path]] = None,
-        model: str = "llama2",
-        llm_host: Optional[str] = None,
-        system_prompt_template: Optional[str] = None,
-        openai_api_key: Optional[str] = None,
-        openai_base_url: Optional[str] = None,
-        timeout: int = 60,
-        **llm_kwargs
-    ):
+    def __init__(self,
+                 repo_path: Optional[Union[str, Path]],
+                 **llm_kwargs):
         """
         Initialize the commit message generator.
 
         Args:
             repo_path: Path to the Git repository (supports str or Path objects).
-            model: Name of the LLM model (default is llama2).
-            llm_host: Address of the local LLM service.
-            system_prompt_template: Path to a custom system prompt template.
-            openai_api_key: OpenAI API key.
-            openai_base_url: OpenAI API address.
-            timeout: Request timeout in seconds.
             **llm_kwargs: Additional parameters passed to LLMService.
         """
-
         if not repo_path:
             logger.error("Param 'repo_path' is mandatory.")
+        
+        llm_options = {
+            "max_tokens": int(os.getenv("MAX_TOKENS")),
+            "temperature": float(os.getenv("TEMPERATURE"))
+        }
 
         self.git_svc = GitService(repo_path=str(repo_path))
         
         self.llm_svc = LLMService(
-            model=model,
-            host=llm_host,
-            system_prompt_template=system_prompt_template,
-            timeout=timeout,
-            openai_api_key=openai_api_key,
-            openai_base_url=openai_base_url,
+            model=os.getenv("LLM_MODEL"),
+            host=os.getenv("LLM_HOST"),
+            system_prompt_template=os.getenv("SYSTEM_PROMPT"),
+            timeout=int(os.getenv("TIMEOUT")),
+            llm_options = llm_options,
+            openai_api_key=os.getenv("OPENAI_API_KEY"),
+            openai_base_url=os.getenv("OPENAI_API_BASE"),
             **llm_kwargs
         )
 
-    def generate(
-        self,
-        context: Optional[str] = None,
-        stream: bool = False,
-        diff_options: Optional[Dict[str, Any]] = None,
-        llm_options: Optional[Dict[str, Any]] = None
-    ) -> Union[str, GenerateResponse]:
+    def generate(self,
+                 context: Optional[str] = None,
+                 stream: bool = False,
+                 diff_options: Optional[Dict[str, Any]] = None,
+                 ) -> Union[str, GenerateResponse]:
         """
         Generate a commit message that complies with the Conventional Commits specification.
 
@@ -71,7 +63,6 @@ class CommitMessageGenerator:
             context: Additional context for the changes.
             stream: Whether to use streaming output.
             diff_options: Parameters passed to get_staged_changes_diff.
-            llm_options: Parameters passed to the LLM generator.
 
         Returns:
             The generated commit message content.
@@ -81,15 +72,15 @@ class CommitMessageGenerator:
             RuntimeError: When commit message generation fails.
         """
         diff_options = diff_options or {}
-        llm_options = llm_options or {}
-        
         try:
-            # get git diff
-            diff = self.git_svc.get_staged_changes_diff(**diff_options)
+            # get raw git diff
+            self.git_svc.get_staged_changes_diff(**diff_options)
+
+            diff = self.git_svc.get_enhanced_diff()
             if not diff.strip():
                 logger.error("No staged changes detected (empty diff)")
                 raise
-                
+
             changes = self.git_svc.get_status_changes()
             
             # generate commit message
@@ -98,7 +89,6 @@ class CommitMessageGenerator:
                 context=context,
                 file_changes=changes,
                 stream=stream,
-                **llm_options
             )
             
         except ValueError as e:
@@ -135,40 +125,15 @@ def main():
         help="Git repository path (default: current directory)"
     )
     parser.add_argument(
-        "--model",
-        default="llama2",
-        help="LLM model (llama2/gpt-3.5-turbo/gpt-4)"
-    )
-    parser.add_argument(
-        "--host",
-        default="http://localhost:11434",
-        help="Local LLM service host"
-    )
-    parser.add_argument(
-        "--openai-key",
-        help="OpenAI API key (default: uses OPENAI_API_KEY env var)",
-        default=os.getenv("OPENAI_API_KEY")
-    )
-    parser.add_argument(
         "--context",
         help="Additional context for the commit"
     )
-    parser.add_argument(
-        "--timeout",
-        type=int,
-        default=60,
-        help="Request timeout in seconds"
-    )
     
     args = parser.parse_args()
-    
+
     try:
         generator = CommitMessageGenerator(
-            repo_path=args.repo,
-            model=args.model,
-            llm_host=args.host,
-            openai_api_key=args.openai_key,
-            timeout=args.timeout
+            repo_path=args.repo
         )
         message = generator.generate(context=args.context)
         sys.stdout.write(message)
