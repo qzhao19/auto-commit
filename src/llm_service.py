@@ -1,5 +1,4 @@
 import re
-import os
 import json
 import httpx
 import jinja2
@@ -9,11 +8,21 @@ import requests
 
 from pathlib import Path
 from pydantic import BaseModel
+from dataclasses import dataclass
 from typing import Optional, Union, Dict, Any, List
 
 PROJECT_ROOT = Path(__file__).parent.absolute()
 
 logger = logging.getLogger(__name__)
+
+@dataclass
+class LLMOptions:
+    """Configuration options for LLM generation"""
+    temperature: float = 0.7
+    max_tokens: int = 2000
+    top_p: float = 0.9
+    frequency_penalty: float = 0.0
+    presence_penalty: float = 0.0
 
 class GenerateRequest(BaseModel):
     model: str
@@ -60,6 +69,7 @@ class LLMService:
         timeout: int = 60,
         openai_api_key: Optional[str] = None,
         openai_base_url: Optional[str] = None,
+        llm_options: Optional[Dict] = None,
         **kwargs
     ):
         """
@@ -72,6 +82,7 @@ class LLMService:
             timeout: Timeout for requests in seconds
             openai_api_key: API key for OpenAI services (optional)
             openai_base_url: Base URL for OpenAI-compatible API (optional)
+            llm_options: Dictionary of LLM generation options (temperature, max_tokens, etc.)
             **kwargs: Additional arguments to pass to the HTTP client
         """
         self.model = model
@@ -88,13 +99,16 @@ class LLMService:
             system_prompt_template or "system_prompt.j2"
         )
         self.timeout = timeout
-        self.openai_api_key = openai_api_key or os.getenv('OPENAI_API_KEY')
-        self.openai_base_url = openai_base_url or os.getenv('OPENAI_API_BASE', 'https://api.openai.com/v1')
+        self.openai_api_key = openai_api_key 
+        self.openai_base_url = openai_base_url
+
+        # Initialize LLM options with defaults
+        self.llm_options = LLMOptions(**(llm_options or {}))
         
         # Initialize HTTP client
         self._client = httpx.Client(
-            base_url=self._parse_host(host or os.getenv('LLM_HOST', 'http://localhost:11434')),
-            timeout=timeout,
+            base_url=self._parse_host(host),
+            timeout=self.timeout,
             headers={
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
@@ -146,6 +160,14 @@ class LLMService:
                            "generate the concise, clear and final commit message in English. "
                            "IMPORTANT: The commit message MUST be within 20 words.")
         return "\n\n".join(user_prompt)
+
+    def update_llm_options(self, **options):
+        """Update LLM generation options"""
+        for key, value in options.items():
+            if hasattr(self.llm_options, key):
+                setattr(self.llm_options, key, value)
+            else:
+                logger.warning(f"Ignoring unknown LLM option: {key}")
 
     def generate_commit_message(self,
                                 diff_content: str,
@@ -206,7 +228,11 @@ class LLMService:
                     'prompt': prompt,
                     'system': self.system_prompt,
                     'stream': stream,
-                    'options': options,
+                    'options': {
+                        'temperature': self.llm_options.temperature,
+                        'max_tokens': self.llm_options.max_tokens,
+                        'top_p': self.llm_options.top_p,
+                    },
                 }
             )
             response.raise_for_status()
@@ -226,7 +252,7 @@ class LLMService:
 
     def _generate_with_openai(self, prompt: str) -> str:
         """Generate commit message using OpenAI API"""
-        if not self.openai_api_key:
+        if not self.openai_api_key or not self.openai_base_url:
             logger.warning('OPENAI_API_KEY environment variable not set, cannot call API')
             raise ConnectionError("OpenAI API key not configured")
 
@@ -238,7 +264,7 @@ class LLMService:
                     'Content-Type': 'application/json',
                 },
                 json={
-                    'model': self.model if self.model.startswith('gpt') else 'gpt-4',
+                    'model': self.model if self.model.startswith('gpt') else 'gpt-4o',
                     'messages': [
                         {
                             'role': 'system',
@@ -249,8 +275,11 @@ class LLMService:
                             'content': prompt
                         }
                     ],
-                    'temperature': 0.7,
-                    'max_tokens': 2000,
+                    'temperature': self.llm_options.temperature,
+                    'max_tokens': self.llm_options.max_tokens,
+                    'top_p': self.llm_options.top_p,
+                    'frequency_penalty': self.llm_options.frequency_penalty,
+                    'presence_penalty': self.llm_options.presence_penalty,
                 },
                 timeout=self.timeout
             )
