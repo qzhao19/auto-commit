@@ -14,8 +14,8 @@ echo -e "${YELLOW}Installing from: ${ROOT_DIR}${NC}"
 
 # 2. create Python venv
 echo -e "${GREEN}Creating virtual environment...${NC}"
-python -m venv "${ROOT_DIR}/auto-commit-venv"
-source "${ROOT_DIR}/auto-commit-venv/bin/activate"
+python -m venv "${ROOT_DIR}/venv"
+source "${ROOT_DIR}/venv/bin/activate"
 
 # 3. install dependencies
 if [ -f "requirements.txt" ]; then
@@ -27,7 +27,7 @@ fi
 
 # 4. create auto-commit.sh script
 echo -e "${GREEN}Creating user script...${NC}"
-cat > ~/.auto-commit.sh <<EOF
+cat > ~/.auto-commit.sh <<'EOF'
 #!/bin/bash
 # auto-commit.sh - Interactive commit message generator
 
@@ -39,8 +39,8 @@ CYAN='\033[1;36m'
 NC='\033[0m' # No Color
 
 # Path configurations
-AUTO_COMMIT_ROOT="$ROOT_DIR"
-PYTHON_CMD="$AUTO_COMMIT_ROOT/auto-commit-venv/bin/python"
+AUTO_COMMIT_ROOT="__ROOT_DIR__"
+PYTHON_CMD="$AUTO_COMMIT_ROOT/venv/bin/python"
 MAIN_SCRIPT="$AUTO_COMMIT_ROOT/main.py"
 TARGET_REPO=$(git rev-parse --show-toplevel 2>/dev/null)
 
@@ -71,7 +71,7 @@ while true; do
     
     # Generate message
     # commit_msg=$("$PYTHON_CMD" "$MAIN_SCRIPT" --repo "$TARGET_REPO")
-    commit_msg=$(source "$AUTO_COMMIT_ROOT/auto-commit-venv/bin/activate" && \
+    commit_msg=$(source "$AUTO_COMMIT_ROOT/venv/bin/activate" && \
                 "$PYTHON_CMD" "$MAIN_SCRIPT" --repo "$TARGET_REPO" 2>/dev/null)
 
     if [ -z "$commit_msg" ]; then
@@ -108,6 +108,9 @@ while true; do
     fi
 done
 EOF
+
+# replace the placeholder with actual root directory
+sed -i "s|__ROOT_DIR__|$ROOT_DIR|g" ~/.auto-commit.sh
 
 # 5. setup permission for auto-commit.sh
 chmod +x ~/.auto-commit.sh || {
