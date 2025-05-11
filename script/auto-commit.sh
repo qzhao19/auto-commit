@@ -9,8 +9,8 @@ CYAN='\033[1;36m'
 NC='\033[0m' # No Color
 
 # Path configurations
-AUTO_COMMIT_ROOT="path/to/your/auto-commit"
-PYTHON_CMD="$AUTO_COMMIT_ROOT/auto-commit-venv/bin/python"
+AUTO_COMMIT_ROOT="path/to/your/auto-commit/dir"
+PYTHON_CMD="$AUTO_COMMIT_ROOT/venv/bin/python"
 MAIN_SCRIPT="$AUTO_COMMIT_ROOT/main.py"
 TARGET_REPO=$(git rev-parse --show-toplevel 2>/dev/null)
 
@@ -41,7 +41,7 @@ while true; do
     
     # Generate message
     # commit_msg=$("$PYTHON_CMD" "$MAIN_SCRIPT" --repo "$TARGET_REPO")
-    commit_msg=$(source "$AUTO_COMMIT_ROOT/auto-commit-venv/bin/activate" && \
+    commit_msg=$(source "$AUTO_COMMIT_ROOT/venv/bin/activate" && \
                 "$PYTHON_CMD" "$MAIN_SCRIPT" --repo "$TARGET_REPO" 2>/dev/null)
 
     if [ -z "$commit_msg" ]; then
