@@ -77,7 +77,7 @@ LLM_MODEL = "qwen2.5:0.5b"       # Model name/version
 LLM_HOST = "http://localhost:11434"  # Local AI server URL
 
 # OpenAI Settings (alternative)
-OPENAI_API_KEY = ""              # Required for OpenAI API
+OPENAI_API_KEY = "your-api-key-here"           # Required for OpenAI API
 OPENAI_API_BASE = "https://api.openai.com/v1"  # OpenAI endpoint
 
 # Generation Parameters
@@ -86,6 +86,25 @@ TIMEOUT = 60                     # API timeout in seconds
 MAX_TOKENS = 2000                # Max response length
 TEMPERATURE = 0.8                # Creativity vs determinism (0-1)
 ```
+The system automatically detects which to use based on:
+
+- If ``LLM_MODEL`` starts with ``gpt`` AND ``OPENAI_API_KEY`` exists → Uses OpenAI
+- Otherwise → Uses local LLM with specified ``LLM_HOST``
+
+You can switch between them just by changing the .env file - no code changes needed!
+
+### Local LLM Setup
+
+Here's how to install and use Ollama:
+```bash
+# Install Ollama
+curl -fsSL https://ollama.com/install.sh | sh
+# pull your desired model 
+ollama pull llama2
+# run your local LLM server
+ollama serve
+```
+
 
 ### Prompt Customization
 
