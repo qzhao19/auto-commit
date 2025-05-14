@@ -95,7 +95,7 @@ You can switch between them just by changing the .env file - no code changes nee
 
 ### Local LLM Setup
 
-Here's how to install and use Ollama:
+Here's how to setup local LLM model via Ollama:
 ```bash
 # Install Ollama
 curl -fsSL https://ollama.com/install.sh | sh
