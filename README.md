@@ -20,6 +20,8 @@ The `auto-commit` is a Python-based utility designed to automatically generate m
 - **Customizable Rules**: Allows users to define custom rules for commit message generation.
 
 ## Installation
+❗ **System Requirements**: Currently only supports on Linux system. Contributions for Windows or macOS compatibility are welcome from interested developers.
+
 ### Automated Installation
 We provide an installation script (`install.sh`) that handles:
 1. Creating a Python virtual environment (`venv`) and installing dependencies
