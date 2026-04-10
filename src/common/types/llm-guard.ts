@@ -6,3 +6,15 @@ export interface RateLimiterConfig {
   maxQueueSize: number;
   requestTimeout: number;
 }
+
+/**
+ * Configuration for retry
+ */
+export interface RetryConfig {
+  maxRetries: number;
+  initialDelayMs: number;
+  maxDelayMs: number;
+  factor: number;
+  retryableErrors: RegExp[];
+  jitter: boolean;
+}
