@@ -1,5 +1,6 @@
-import { type RateLimiterConfig } from "../../common/types/index";
+import { type RateLimiterConfig } from "../../types/index";
 
+// A type for items in internal queue
 type WaitingResolver = {
   resolve: () => void;
   reject: (error: Error) => void;
@@ -13,12 +14,13 @@ export class RateLimiter {
   private readonly maxQueueSize: number;
   private readonly requestTimeout: number;
 
+  // Current number of tokens in the bucket
   private tokenBucket: number;
   private lastRefillTimestamp: number;
   private waitingQueue: WaitingResolver[] = [];
 
-  // Drain scheduling — replaces the polling loop
-  private isDraining = false;
+  // Drain scheduling
+  private isDraining: boolean = false;
   private scheduledDrainId: ReturnType<typeof setTimeout> | null = null;
 
   constructor(config: RateLimiterConfig) {
@@ -27,12 +29,13 @@ export class RateLimiter {
     this.maxQueueSize = config.maxQueueSize;
     this.requestTimeout = config.requestTimeout;
 
+    // Initialize the bucket as full
     this.tokenBucket = this.maxTokens;
     this.lastRefillTimestamp = Date.now();
   }
 
   /**
-   * Acquires a token. Resolves when a token is available,
+   * Acquires a token. Resolves when a token is available, 
    * rejects if the queue is full or the request times out.
    */
   public async acquire(): Promise<void> {
@@ -43,15 +46,16 @@ export class RateLimiter {
     }
 
     return new Promise<void>((resolve, reject) => {
-      // Per-request timeout — fires precisely, regardless of drain state
+      // Set a separate timeout timer for each request
       const timeoutId = setTimeout(() => {
-        const idx = this.waitingQueue.indexOf(item);
-        if (idx >= 0) {
-          this.waitingQueue.splice(idx, 1);
+        const index = this.waitingQueue.indexOf(item);
+        if (index >= 0) {
+          this.waitingQueue.splice(index, 1);
         }
-        reject(new Error(`Request timed out after ${this.requestTimeout}ms`));
+        reject(new Error(`Request timeout after ${this.requestTimeout}ms`));
       }, this.requestTimeout);
 
+      // Create object of waiting queue
       const item: WaitingResolver = {
         enqueuedAt: Date.now(),
         timeoutId,
@@ -59,86 +63,97 @@ export class RateLimiter {
           clearTimeout(timeoutId);
           resolve();
         },
-        reject: (err: Error) => {
+        reject: (error: Error) => {
           clearTimeout(timeoutId);
-          reject(err);
+          reject(error);
         },
       };
 
+      // Enqueue item
       this.waitingQueue.push(item);
       this.scheduleDrain();
     });
   }
 
-
-  private refillTokens(): void {
-    const now = Date.now();
-    const elapsedSeconds = (now - this.lastRefillTimestamp) / 1000;
-    if (elapsedSeconds <= 0) return;
-
-    const tokensToAdd = elapsedSeconds * this.refillRatePerSecond;
-    this.tokenBucket = Math.min(this.maxTokens, this.tokenBucket + tokensToAdd);
-    this.lastRefillTimestamp = now;
+  /**
+   * Current number of requests waiting in the queue
+   */
+  public get queueLength(): number {
+    return this.waitingQueue.length;
   }
 
   /**
-   * Schedules a drain pass. If a drain is already scheduled or
-   * actively running, this is a no-op - the current drain will
-   * pick up the newly enqueued item.
+   * Current available tokens
+   */
+  public get availableTokens(): number {
+    return this.tokenBucket;
+  }
+
+  /**
+   * Add the token based on time
+   */
+  private refillTokens(): void {
+    const currentTimestamp: number = Date.now();
+    // Calculate the time difference in seconds
+    const elapsedSeconds: number = (currentTimestamp - this.lastRefillTimestamp) / 1000;
+    if (elapsedSeconds <= 0) return;
+
+    // Calculate the number of tokens that should theoretically be added
+    const tokensToAdd: number = elapsedSeconds * this.refillRatePerSecond;
+    this.tokenBucket = Math.min(this.maxTokens, this.tokenBucket + tokensToAdd); 
+    this.lastRefillTimestamp = currentTimestamp;
+  }
+
+  /**
+   * Schedules a drain pass
    */
   private scheduleDrain(): void {
+    // If a drain is already scheduled or actively running
     if (this.scheduledDrainId !== null || this.isDraining) return;
-    // Use queueMicrotask so the drain runs after the current
-    // synchronous block (including the push into waitingQueue).
+
     this.scheduledDrainId = setTimeout(() => {
       this.scheduledDrainId = null;
-      this.drain();
+      this.drain()
     }, 0);
   }
 
   /**
-   * Drains the queue: grants tokens to as many waiting requests as
-   * currently possible, then — if items remain — computes the exact
-   * time until the next token is available and schedules itself once.
+   * Drains the queue
    */
   private drain(): void {
     if (this.isDraining) return;
     this.isDraining = true;
 
     try {
+      // Firstly add token
       this.refillTokens();
 
-      // Release all requests we can satisfy right now
+      // Release all requests, queue has item and token exists
       while (this.waitingQueue.length > 0 && this.tokenBucket >= 1) {
         this.tokenBucket -= 1;
-        const next = this.waitingQueue.shift();
-        next?.resolve();
+        const item: WaitingResolver | undefined = this.waitingQueue.shift();
+        item?.resolve();
       }
 
-      // If items remain, schedule the next drain at the precise
-      // moment the next token becomes available.
+      // If items remain, schedule the next drain at the moment 
+      // that the next token becomes available
       if (this.waitingQueue.length > 0) {
-        const deficit = 1 - this.tokenBucket;
-        const waitMs = Math.max(
-          1,
+        const deficit: number = 1 - this.tokenBucket;
+        const waitMs: number = Math.max(
+          1, 
           Math.ceil((deficit / this.refillRatePerSecond) * 1000),
         );
-
         this.scheduledDrainId = setTimeout(() => {
           this.scheduledDrainId = null;
           this.drain();
         }, waitMs);
       }
     } catch (error) {
-      // On unexpected error, reject all pending to avoid hangs
-      const err =
-        error instanceof Error
-          ? error
-          : new Error("Rate limiter drain failed");
-
+      const errorMsg = error instanceof Error ? error : new Error("Rate limiter drain failed");
+      // Reject all pending to avoid hangs
       while (this.waitingQueue.length > 0) {
-        const item = this.waitingQueue.shift();
-        item?.reject(err);
+        const item: WaitingResolver | undefined = this.waitingQueue.shift();
+        item?.reject(errorMsg);
       }
     } finally {
       this.isDraining = false;
