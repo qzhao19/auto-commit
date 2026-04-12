@@ -181,7 +181,7 @@ describe("Retry", () => {
       const retry = new Retry({ ...fastConfig, maxRetries: 0 });
 
       const fn = async () => {
-        throw "string error"; // eslint-disable-line no-throw-literal
+        throw new Error("string error");
       };
 
       await expect(retry.execute(fn)).rejects.toThrow("string error");
@@ -530,6 +530,7 @@ describe("Retry", () => {
       expect(results[0]).toEqual({ status: "fulfilled", value: "ok" });
       expect(results[1]).toEqual({
         status: "rejected",
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         reason: expect.any(Error),
       });
       expect(results[2]).toEqual({ status: "fulfilled", value: "success" });
@@ -558,7 +559,7 @@ describe("Retry", () => {
 
       try {
         await retry.execute(async () => {
-          throw 12345; // eslint-disable-line no-throw-literal
+          throw new Error("12345");
         });
       } catch (err) {
         expect(err).toBeInstanceOf(Error);
