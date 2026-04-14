@@ -1,4 +1,4 @@
-import { type RetryConfig } from "../../types";
+import { type RetryConfig } from "../../types/index";
 
 // Helper function 
 const sleep = (delayMs: number) => 
@@ -67,7 +67,7 @@ export class Retry {
       }
     }
     // All retries exhausted or non-retryable error
-    throw lastError;
+    throw lastError!;
   }
 
   private isRetryable(error: Error): boolean {
