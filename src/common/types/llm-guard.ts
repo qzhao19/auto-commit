@@ -18,3 +18,11 @@ export interface RetryConfig {
   retryableErrors: RegExp[];
   jitter: boolean;
 }
+
+
+/**
+ * Configuration for timeout
+ */
+export interface TimeoutConfig {
+  timeoutMs: number;
+}
