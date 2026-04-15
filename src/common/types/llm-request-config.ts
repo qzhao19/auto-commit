@@ -26,3 +26,13 @@ export interface RetryConfig {
 export interface TimeoutConfig {
   timeoutMs: number;
 }
+
+/**
+ * Request policies for LLM calls..
+ * All fields optional — only instantiate the guards you need.
+ */
+export interface LLMRequestConfig {
+  retry?: RetryConfig;
+  timeout?: TimeoutConfig;
+  rateLimiter?: RateLimiterConfig;
+}
