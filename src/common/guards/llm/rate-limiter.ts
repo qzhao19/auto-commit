@@ -1,4 +1,4 @@
-import { type RateLimiterConfig } from "../../types/index";
+import { type RateLimiterConfig, type AcquireOptions } from "../../types/index";
 
 // A type for items in internal queue
 type WaitingResolver = {
@@ -38,11 +38,16 @@ export class RateLimiter {
    * Acquires a token. Resolves when a token is available, 
    * rejects if the queue is full or the request times out.
    */
-  public async acquire(): Promise<void> {
+  public async acquire(options?: AcquireOptions): Promise<void> {
     if (this.waitingQueue.length >= this.maxQueueSize) {
       throw new Error(
-        `Rate limiter queue is full (${this.maxQueueSize} requests)`,
+        `[RateLimiter] Rate limiter queue is full (${this.maxQueueSize} requests)`,
       );
+    }
+
+    const effectiveTimeoutMs = options?.timeoutMs ?? this.requestTimeout;
+    if (!Number.isFinite(effectiveTimeoutMs) || effectiveTimeoutMs <= 0) {
+      throw new Error("[RateLimiter] Acquire timeout must be a finite number > 0");
     }
 
     return new Promise<void>((resolve, reject) => {
@@ -52,8 +57,8 @@ export class RateLimiter {
         if (index >= 0) {
           this.waitingQueue.splice(index, 1);
         }
-        reject(new Error(`Request timeout after ${this.requestTimeout}ms`));
-      }, this.requestTimeout);
+        reject(new Error(`[RateLimiter] Request timeout after ${effectiveTimeoutMs}ms`));
+      }, effectiveTimeoutMs);
 
       // Create object of waiting queue
       const item: WaitingResolver = {
