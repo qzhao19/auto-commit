@@ -28,6 +28,18 @@ export interface TimeoutConfig {
 }
 
 /**
+ * Options for executing a timeout-guarded operation.
+ * Reuses the same structure as `TimeoutConfig`.
+ */
+export type TimeoutExecuteOptions = TimeoutConfig;
+
+/**
+ * Options for acquiring a token from a rate limiter with a timeout.
+ * Reuses the same structure as `TimeoutConfig`.
+ */
+export type AcquireOptions = TimeoutConfig;
+
+/**
  * Request policies for LLM calls..
  * All fields optional — only instantiate the guards you need.
  */
