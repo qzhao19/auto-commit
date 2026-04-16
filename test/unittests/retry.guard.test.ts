@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
-import { Retry } from "../../src/common/guards/llm/retry";
-import { type RetryConfig } from "../../src/common/types/index";
+import { Retry } from "../../src/lib/guards/retry/retry";
+import { type RetryConfig } from "../../src/shared/types/index";
 
 // ── Helpers ─────────────────────────────────────────────
 
