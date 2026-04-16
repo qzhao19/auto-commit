@@ -1,5 +1,5 @@
-import { type LLMRequestConfig } from "./llm-request-config";
-import { type LLModelParams } from "./llm-model-params";
+import { type RequestSafetyConfig } from "./request-safety";
+import { type LLModelParams } from "./model-settings";
 
 /**
  * Provider-level configuration (per adapter instance).
@@ -12,10 +12,11 @@ import { type LLModelParams } from "./llm-model-params";
  * - requestConfig: LLM request config (retry / timeout / rate-limiter)
  */
 export interface ProviderConfig {
-  apiKey?: string;
-  baseUrl?: string;
+  apiKey: string;
+  baseUrl: string;
   model: string;
+  provider: string;
   modelParams?: LLModelParams;
-  requestConfig?: LLMRequestConfig;
+  requestConfig?: RequestSafetyConfig;
 }
 
