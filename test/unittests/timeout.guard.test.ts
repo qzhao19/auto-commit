@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
-import { Timeout } from "../../src/common/guards/llm/timeout";
-import { type TimeoutConfig } from "../../src/common/types/index";
+import { Timeout } from "../../src/lib/guards/timeout/timeout";
+import { type TimeoutConfig } from "../../src/shared/types/index";
 
 // ── Helpers ─────────────────────────────────────────────
 
