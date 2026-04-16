@@ -1,4 +1,4 @@
-import { type RetryConfig } from "../../types/index";
+import { type RetryConfig } from "../../../shared/types/index";
 
 // Helper function 
 const sleep = (delayMs: number) => 
