@@ -1,4 +1,4 @@
-import { type RateLimiterConfig, type AcquireOptions } from "../../types/index";
+import { type RateLimiterConfig, type AcquireOptions } from "../../../shared/types/index";
 
 // A type for items in internal queue
 type WaitingResolver = {
