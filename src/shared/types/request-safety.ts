@@ -19,7 +19,6 @@ export interface RetryConfig {
   jitter: boolean;
 }
 
-
 /**
  * Configuration for timeout
  */
@@ -40,11 +39,11 @@ export type TimeoutExecuteOptions = TimeoutConfig;
 export type AcquireOptions = TimeoutConfig;
 
 /**
- * Request policies for LLM calls..
+ * Request policies for LLM calls.
  * All fields optional — only instantiate the guards you need.
  */
-export interface LLMRequestConfig {
-  retry?: RetryConfig;
-  timeout?: TimeoutConfig;
-  rateLimiter?: RateLimiterConfig;
+export interface RequestSafetyConfig {
+  retry: Omit<RetryConfig, "retryableErrors">;
+  timeout: TimeoutConfig;
+  rateLimiter: RateLimiterConfig;
 }
