@@ -1,4 +1,4 @@
-import { type TimeoutConfig, type TimeoutExecuteOptions } from "../../types/index";
+import { type TimeoutConfig, type TimeoutExecuteOptions } from "../../../shared/types/index";
 
 export class Timeout {
   private readonly defaultTimeoutMs: number;
