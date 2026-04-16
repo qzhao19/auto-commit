@@ -1,6 +1,6 @@
 import { describe, test, expect} from "bun:test";
-import { RateLimiter } from "../../src/common/guards/llm/rate-limiter";
-import { type RateLimiterConfig } from "../../src/common/types/index";
+import { RateLimiter } from "../../src/lib/guards/rate-limit/rate-limiter";
+import { type RateLimiterConfig } from "../../src/shared/types/index";
 
 // ── Helpers ──────────────
 
