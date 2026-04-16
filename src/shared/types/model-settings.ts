@@ -1,5 +1,5 @@
 /**
- * LLMModelParams defines the configuration options for a Large Language Model (LLM).
+ * LLModelParams defines the configuration options for a Large Language Model (LLM).
  * 
  * Properties:
  * - model: Default model identifier or name
@@ -10,10 +10,31 @@
  * - maxTokens: Maximum number of tokens to generate in the output.
  */
 export interface LLModelParams {
-  model?: string;
   temperature?: number;
   topP?: number;
   frequencyPenalty?: number;
   presencePenalty?: number;
   maxTokens?: number;
+}
+
+/**
+ * Configuration identifying the LLM provider
+ * 
+ * Properties:
+ * - model: Default model identifier or name 
+ * - provider：The provider name (e.g., "openai")
+ */
+export interface LLMProviderConfig {
+  model: string;
+  provider: string;
+}
+
+/**
+ * Complete configuration for an LLM generation request，
+ * including provider/model selection and generation parameters
+ */
+export interface LLMCompletionConfig {
+  provider: string;
+  model: string;
+  modelParams: LLModelParams;
 }
