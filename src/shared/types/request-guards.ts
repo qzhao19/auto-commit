@@ -42,8 +42,17 @@ export type AcquireOptions = TimeoutConfig;
  * Request policies for LLM calls.
  * All fields optional — only instantiate the guards you need.
  */
-export interface RequestSafetyConfig {
+export interface RequestGuardsConfig {
   retry: Omit<RetryConfig, "retryableErrors">;
   timeout: TimeoutConfig;
   rateLimiter: RateLimiterConfig;
 }
+
+/**
+ * 
+ */
+export type PartialRequestGuardsConfig = {
+  retry?: Partial<Omit<RetryConfig, "retryableErrors">>;
+  timeout?: Partial<TimeoutConfig>;
+  rateLimiter?: Partial<RateLimiterConfig>;
+};
