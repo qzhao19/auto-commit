@@ -1,5 +1,5 @@
-import { type RequestSafetyConfig } from "./request-safety";
-import { type LLModelParams } from "./model-settings";
+import { type RequestGuardsConfig } from "./request-guards";
+import { type LLMGenerationConfig } from "./model-settings";
 
 /**
  * Provider-level configuration (per adapter instance).
@@ -16,7 +16,7 @@ export interface ProviderConfig {
   baseUrl: string;
   model: string;
   provider: string;
-  modelParams?: LLModelParams;
-  requestConfig?: RequestSafetyConfig;
+  generationConfig?: LLMGenerationConfig;
+  requestGuardsConfig?: RequestGuardsConfig;
 }
 
