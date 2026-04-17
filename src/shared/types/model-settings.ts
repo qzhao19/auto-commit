@@ -1,5 +1,5 @@
 /**
- * LLModelParams defines the configuration options for a Large Language Model (LLM).
+ * LLMGenerationConfig defines the configuration options for a Large Language Model (LLM).
  * 
  * Properties:
  * - model: Default model identifier or name
@@ -9,7 +9,7 @@
  * - presencePenalty: Penalizes repeated topics or ideas.
  * - maxTokens: Maximum number of tokens to generate in the output.
  */
-export interface LLModelParams {
+export interface LLMGenerationConfig {
   temperature?: number;
   topP?: number;
   frequencyPenalty?: number;
@@ -19,22 +19,33 @@ export interface LLModelParams {
 
 /**
  * Configuration identifying the LLM provider
- * 
+ *
  * Properties:
- * - model: Default model identifier or name 
- * - provider：The provider name (e.g., "openai")
+ * - model: Default model identifier or name
+ * - provider: The provider name (e.g., "openai")
+ * - baseUrl: Custom API endpoint (optional; for self-hosted or proxy)
+ * - apiKey: API key (optional in type, recommended from env at runtime)
  */
 export interface LLMProviderConfig {
-  model: string;
-  provider: string;
+  model?: string;
+  provider?: string;
+  baseUrl?: string;
+}
+
+export interface LLMSecretConfig {
+  apiKey?: string;
 }
 
 /**
- * Complete configuration for an LLM generation request，
- * including provider/model selection and generation parameters
+ * Complete LLM configuration combining provider and generation settings.
  */
-export interface LLMCompletionConfig {
-  provider: string;
-  model: string;
-  modelParams: LLModelParams;
-}
+export interface LLMConfig extends LLMProviderConfig, LLMGenerationConfig, LLMSecretConfig {};
+
+/**
+ * Partial LLM configuration for incremental config loading.
+ * Used to represent incomplete configurations from TOML, env vars, or CLI args.
+ * 
+ * Example: A user might only set temperature in the config file,
+ * leaving all other fields undefined until they're merged with defaults.
+ */
+export type PartialLLMConfig = Partial<LLMConfig>;
