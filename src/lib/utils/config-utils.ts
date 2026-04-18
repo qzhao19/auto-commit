@@ -11,26 +11,34 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function deepClone<T>(value: T): T {
+  if (!isPlainObject(value)) return value;
+
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value)) {
+    out[k] = deepClone(v);
+  }
+  return out as T;
+}
+
 function deepMergeObject<T extends object>(
   base: T, overrides: DeepPartial<T>
 ): T {
-  const result: Record<string, unknown> = {
-    ...(base as Record<string, unknown>),
-  };
+  const result = deepClone<T>(base) as Record<string, unknown>;
 
-  for (const [key, overrideValue] of Object.entries(
+  for (const [key, value] of Object.entries(
     overrides as Record<string, unknown>,
   )) {
-    if (overrideValue === undefined) continue;
+    if (value === undefined) continue;
 
     const baseValue = result[key];
-    if (isPlainObject(baseValue) && isPlainObject(overrideValue)) {
+    if (isPlainObject(baseValue) && isPlainObject(value)) {
       result[key] = deepMergeObject(
         baseValue,
-        overrideValue as DeepPartial<Record<string, unknown>>,
+        value as DeepPartial<typeof baseValue>,
       );
     } else {
-      result[key] = overrideValue;
+      result[key] = deepClone(value);
     }
   }
 
