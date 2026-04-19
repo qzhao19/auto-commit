@@ -5,8 +5,26 @@ import {
   type RuntimeConfig,
   type PartialRuntimeConfig,
 } from "../../shared/types/index";
-import { deepMerge } from "../utils/index";
 import { DEFAULT_LLM_CONFIG, DEFAULT_REQUEST_GUARDS_CONFIG } from "../../shared/constants/index"
+import {
+  configValidate,
+  deepMerge,
+  ensureLLMConfig,
+  ensureRateLimiterConfig,
+  ensureRetryConfig,
+  ensureTimeoutConfig,
+} from "../utils/config/index";
+import {
+  assertOnlyKnownKeys,
+  assertIsBool,
+  assertIsFloat,
+  assertIsInt,
+  assertIsObject,
+  assertIsString,
+  assertIsTomlBool,
+  assertIsTomlFloat,
+  assertIsTomlInt,
+} from "../utils/config/index";
 
 export class ConfigLoader {
   private readonly argv: string[];
@@ -23,6 +41,33 @@ export class ConfigLoader {
     this.configFilePath = options?.configFilePath ?? join(homedir(), "autocommit.toml");
   }
 
+  public async load(): Promise<RuntimeConfig> {
+    // Create deault config
+    const defaultConfig: RuntimeConfig = this.createDefaultConfig();
+
+    // Load partial configs from toml config file
+    const tomlPartialConfig: PartialRuntimeConfig = await this.loadTomlFile();
+
+    // Load environment variables: 
+    // requestGuards + LLMProviderConfig overrides (provider/model/baseUrl/apiKey) 
+    const envPartialConfig: PartialRuntimeConfig = this.loadEnvGuardOverrides();
+
+    // Load CLI arguments : LLM configs only
+    const cliPartialConfig: PartialRuntimeConfig = this.loadCliLLMOverrides();
+
+    // Merge all configs
+    const runtimeConfig: RuntimeConfig = this.mergeConfigs(
+      defaultConfig,
+      tomlPartialConfig,
+      envPartialConfig,
+      cliPartialConfig,
+    )
+
+    configValidate(runtimeConfig);
+
+    return runtimeConfig;
+  }
+
   // ── Layer 0: Defaults ──
 
   private createDefaultConfig(): RuntimeConfig {
@@ -32,14 +77,12 @@ export class ConfigLoader {
     }
   }
 
-  // // ── Layer 1: TOML File ──
+  // ── Layer 1: TOML File ──
 
   private async loadTomlFile(): Promise<PartialRuntimeConfig> {
     const file = Bun.file(this.configFilePath);
     if (!(await file.exists())) {
-      throw new Error(
-        `Failed to open file ${this.configFilePath}.`
-      );
+      return {};
     }
 
     let content: string;
@@ -52,12 +95,22 @@ export class ConfigLoader {
       );
     }
 
+    let parsedContent: object;
     try {
-      return Bun.TOML.parse(content) as PartialRuntimeConfig;
+      parsedContent = Bun.TOML.parse(content);
     } catch (error) {
       throw new Error(
         `Failed to parse config file ${this.configFilePath}: ${this.errorMsg(error)}`,
         { cause: error }
+      );
+    }
+
+    try {
+      return this.normalizeTomlConfig(parsedContent);
+    } catch (error) {
+      throw new Error(
+        "Invalid config in " + this.configFilePath + ": " + this.errorMsg(error),
+        { cause: error },
       );
     }
   }
@@ -76,28 +129,28 @@ export class ConfigLoader {
     {
       key: "AUTOCOMMIT_PROVIDER",
       apply: (overrides, value) => {
-        const llm = ConfigLoader.ensureLLMConfig(overrides);
+        const llm = ensureLLMConfig(overrides);
         llm.provider = value.trim();
       },
     },
     {
       key: "AUTOCOMMIT_MODEL",
       apply: (overrides, value) => {
-        const llm = ConfigLoader.ensureLLMConfig(overrides);
+        const llm = ensureLLMConfig(overrides);
         llm.model = value.trim();
       },
     },
     {
       key: "AUTOCOMMIT_BASE_URL",
       apply: (overrides, value) => {
-        const llm = ConfigLoader.ensureLLMConfig(overrides);
+        const llm = ensureLLMConfig(overrides);
         llm.baseUrl = value.trim();
       },
     },
     {
       key: "AUTOCOMMIT_API_KEY",
       apply: (overrides, value) => {
-        const llm = ConfigLoader.ensureLLMConfig(overrides);
+        const llm = ensureLLMConfig(overrides);
         llm.apiKey = value.trim();
       },
     },
@@ -106,36 +159,36 @@ export class ConfigLoader {
     {
       key: "AUTOCOMMIT_RETRY_MAX_RETRIES",
       apply: (overrides, value) => {
-        const retry = ConfigLoader.ensureRetryConfig(overrides);
-        retry.maxRetries = ConfigLoader.mustParseInt(value, "AUTOCOMMIT_RETRY_MAX_RETRIES");
+        const retry = ensureRetryConfig(overrides);
+        retry.maxRetries = assertIsInt(value, "AUTOCOMMIT_RETRY_MAX_RETRIES");
       },
     },
     {
       key: "AUTOCOMMIT_RETRY_INITIAL_DELAY_MS",
       apply: (overrides, value) => {
-        const retry = ConfigLoader.ensureRetryConfig(overrides);
-        retry.initialDelayMs = ConfigLoader.mustParseInt(value, "AUTOCOMMIT_RETRY_INITIAL_DELAY_MS");
+        const retry = ensureRetryConfig(overrides);
+        retry.initialDelayMs = assertIsInt(value, "AUTOCOMMIT_RETRY_INITIAL_DELAY_MS");
       },
     },
     {
       key: "AUTOCOMMIT_RETRY_MAX_DELAY_MS",
       apply: (overrides, value) => {
-        const retry = ConfigLoader.ensureRetryConfig(overrides);
-        retry.maxDelayMs = ConfigLoader.mustParseInt(value, "AUTOCOMMIT_RETRY_MAX_DELAY_MS");
+        const retry = ensureRetryConfig(overrides);
+        retry.maxDelayMs = assertIsInt(value, "AUTOCOMMIT_RETRY_MAX_DELAY_MS");
       },
     },
     {
       key: "AUTOCOMMIT_RETRY_FACTOR",
       apply: (overrides, value) => {
-        const retry = ConfigLoader.ensureRetryConfig(overrides);
-        retry.factor = ConfigLoader.mustParseFloat(value, "AUTOCOMMIT_RETRY_FACTOR");
+        const retry = ensureRetryConfig(overrides);
+        retry.factor = assertIsFloat(value, "AUTOCOMMIT_RETRY_FACTOR");
       },
     },
     {
       key: "AUTOCOMMIT_RETRY_JITTER",
       apply: (overrides, value) => {
-        const retry = ConfigLoader.ensureRetryConfig(overrides);
-        retry.jitter = ConfigLoader.mustParseBool(value, "AUTOCOMMIT_RETRY_JITTER");
+        const retry = ensureRetryConfig(overrides);
+        retry.jitter = assertIsBool(value, "AUTOCOMMIT_RETRY_JITTER");
       },
     },
 
@@ -143,8 +196,8 @@ export class ConfigLoader {
     {
       key: "AUTOCOMMIT_TIMEOUT_MS",
       apply: (overrides, value) => {
-        const timeout = ConfigLoader.ensureTimeoutConfig(overrides);
-        timeout.timeoutMs = ConfigLoader.mustParseInt(value, "AUTOCOMMIT_TIMEOUT_MS");
+        const timeout = ensureTimeoutConfig(overrides);
+        timeout.timeoutMs = assertIsInt(value, "AUTOCOMMIT_TIMEOUT_MS");
       },
     },
 
@@ -152,22 +205,22 @@ export class ConfigLoader {
     {
       key: "AUTOCOMMIT_RATE_LIMITER_MAX_RPM",
       apply: (overrides, value) => {
-        const rl = ConfigLoader.ensureRateLimiterConfig(overrides);
-        rl.maxRequestsPerMinute = ConfigLoader.mustParseInt(value, "AUTOCOMMIT_RATE_LIMITER_MAX_RPM");
+        const rl = ensureRateLimiterConfig(overrides);
+        rl.maxRequestsPerMinute = assertIsInt(value, "AUTOCOMMIT_RATE_LIMITER_MAX_RPM");
       },
     },
     {
       key: "AUTOCOMMIT_RATE_LIMITER_MAX_QUEUE_SIZE",
       apply: (overrides, value) => {
-        const rl = ConfigLoader.ensureRateLimiterConfig(overrides);
-        rl.maxQueueSize = ConfigLoader.mustParseInt(value, "AUTOCOMMIT_RATE_LIMITER_MAX_QUEUE_SIZE");
+        const rl = ensureRateLimiterConfig(overrides);
+        rl.maxQueueSize = assertIsInt(value, "AUTOCOMMIT_RATE_LIMITER_MAX_QUEUE_SIZE");
       },
     },
     {
       key: "AUTOCOMMIT_RATE_LIMITER_REQUEST_TIMEOUT",
       apply: (overrides, value) => {
-        const rl = ConfigLoader.ensureRateLimiterConfig(overrides);
-        rl.requestTimeout = ConfigLoader.mustParseInt(value, "AUTOCOMMIT_RATE_LIMITER_REQUEST_TIMEOUT");
+        const rl = ensureRateLimiterConfig(overrides);
+        rl.requestTimeout = assertIsInt(value, "AUTOCOMMIT_RATE_LIMITER_REQUEST_TIMEOUT");
       },
     },
   ];
@@ -212,12 +265,17 @@ export class ConfigLoader {
       .addOption(new Option("--frequency-penalty <n>", "Frequency penalty"))
       .addOption(new Option("--presence-penalty <n>", "Presence penalty"));
 
+    const argvForCommander =
+      this.argv.length > 0 && this.argv[0]!.startsWith("--")
+        ? this.argv
+        : this.argv.slice(1);
+
     try {
-      program.parse(this.argv, { from: "user" });
+      program.parse(argvForCommander, { from: "user" });
     } catch (error) {
       throw new Error(
-        `Invalid CLI arguments: ${this.errorMsg(error)}`,
-        { cause: error}
+        "Invalid CLI arguments: " + this.errorMsg(error),
+        { cause: error },
       );
     }
 
@@ -238,7 +296,7 @@ export class ConfigLoader {
       setter: (value: number) => void,
     ): void => {
       if (raw === undefined) return;
-      const value = ConfigLoader.mustParseFloat(raw, argName);
+      const value = assertIsFloat(raw, argName);
       setter(value);
       hasLLMGenerationOverride = true;
     };
@@ -249,165 +307,254 @@ export class ConfigLoader {
       setter: (value: number) => void,
     ): void => {
       if (raw === undefined) return;
-      const value = ConfigLoader.mustParseInt(raw, argName);
+      const value = assertIsInt(raw, argName);
       setter(value);
       hasLLMGenerationOverride = true;
     };
 
     setFloatOverride(opts.temperature, "--temperature", (value) => {
-      ConfigLoader.ensureLLMConfig(overrides).temperature = value;
+      ensureLLMConfig(overrides).temperature = value;
     });
     setIntOverride(opts.maxTokens, "--max-tokens", (value) => {
-      ConfigLoader.ensureLLMConfig(overrides).maxTokens = value;
+      ensureLLMConfig(overrides).maxTokens = value;
     });
     setFloatOverride(opts.topP, "--top-p", (value) => {
-      ConfigLoader.ensureLLMConfig(overrides).topP = value;
+      ensureLLMConfig(overrides).topP = value;
     });
     setFloatOverride(opts.frequencyPenalty, "--frequency-penalty", (value) => {
-      ConfigLoader.ensureLLMConfig(overrides).frequencyPenalty = value;
+      ensureLLMConfig(overrides).frequencyPenalty = value;
     });
     setFloatOverride(opts.presencePenalty, "--presence-penalty", (value) => {
-      ConfigLoader.ensureLLMConfig(overrides).presencePenalty = value;
+      ensureLLMConfig(overrides).presencePenalty = value;
     });
 
     if (!hasLLMGenerationOverride) return {};
     return overrides;
   }
 
-
-  // 
-  private mergeConfigs(configs: PartialRuntimeConfig[]): RuntimeConfig {
-    const defaultConfig: RuntimeConfig = this.createDefaultConfig();
-
-    let mergedConfig: RuntimeConfig = { ...defaultConfig };
-    for (const partial of configs) {
+  private mergeConfigs(
+    defaultConfig: RuntimeConfig, 
+    ...partialConfig: PartialRuntimeConfig[]
+  ): RuntimeConfig {
+    let mergedConfig: RuntimeConfig = deepMerge(defaultConfig, {});
+    for (const partial of partialConfig) {
       mergedConfig = deepMerge(mergedConfig, partial);
     }
 
     return mergedConfig;
   }
 
+  private normalizeTomlConfig(rawToml: unknown): PartialRuntimeConfig {
+    const root = assertIsObject(rawToml, "root");
+    const normalizedRoot: Record<string, unknown> = { ...root };
 
-  // ── Safe config initializers (avoid undefined nested object access) ──
-
-  private static ensureLLMConfig(overrides: PartialRuntimeConfig): NonNullable<PartialRuntimeConfig["llm"]> {
-    overrides.llm ??= {};
-    return overrides.llm;
-  }
-
-  private static ensureRequestGuardsConfig(
-    overrides: PartialRuntimeConfig,
-  ): NonNullable<PartialRuntimeConfig["requestGuards"]> {
-    overrides.requestGuards ??= {};
-    return overrides.requestGuards;
-  }
-
-  private static ensureRetryConfig(
-    overrides: PartialRuntimeConfig,
-  ): NonNullable<NonNullable<PartialRuntimeConfig["requestGuards"]>["retry"]> {
-    const guards = ConfigLoader.ensureRequestGuardsConfig(overrides);
-    guards.retry ??= {};
-    return guards.retry;
-  }
-
-  private static ensureTimeoutConfig(
-    overrides: PartialRuntimeConfig,
-  ): NonNullable<NonNullable<PartialRuntimeConfig["requestGuards"]>["timeout"]> {
-    const guards = ConfigLoader.ensureRequestGuardsConfig(overrides);
-    guards.timeout ??= {};
-    return guards.timeout;
-  }
-
-  private static ensureRateLimiterConfig(
-    overrides: PartialRuntimeConfig,
-  ): NonNullable<NonNullable<PartialRuntimeConfig["requestGuards"]>["rateLimiter"]> {
-    const guards = ConfigLoader.ensureRequestGuardsConfig(overrides);
-    guards.rateLimiter ??= {};
-    return guards.rateLimiter;
-  }
-
-  // ── Parse Helpers ──
-
-  private static mustParseInt(value: string, name: string): number {
-    const n = Number.parseInt(value, 10);
-    if (Number.isNaN(n)) throw new Error(`${name} must be an integer`);
-    return n;
-  }
-
-  private static mustParseFloat(value: string, name: string): number {
-    const n = Number.parseFloat(value);
-    if (Number.isNaN(n)) throw new Error(`${name} must be a number`);
-    return n;
-  }
-
-  private static mustParseBool(value: string, name: string): boolean {
-    if (value === "true" || value === "1") return true;
-    if (value === "false" || value === "0") return false;
-    throw new Error(`${name} must be true/false or 1/0`);
-  }
-  
-  private validate(config: RuntimeConfig): void {
-    const { llm, requestGuards } = config;
-
-    if (!llm.provider || llm.provider.trim() === "") {
-      throw new Error("llm.provider is required. Set it in autocommit.toml or via --provider");
+    // backward compatibility: old template used RequestGuards
+    if (
+      normalizedRoot.requestGuards === undefined &&
+      normalizedRoot.RequestGuards !== undefined
+    ) {
+      normalizedRoot.requestGuards = normalizedRoot.RequestGuards;
     }
-    if (!llm.model || llm.model.trim() === "") {
-      throw new Error("llm.model is required. Set it in autocommit.toml or via --model");
+    delete normalizedRoot.RequestGuards;
+
+    assertOnlyKnownKeys(
+      normalizedRoot,
+      ["llm", "requestGuards"],
+      "root",
+    );
+
+    const out: PartialRuntimeConfig = {};
+
+    if (normalizedRoot.llm !== undefined) {
+      out.llm = this.normalizeTomlLLM(normalizedRoot.llm);
     }
 
-    // For remote providers, apiKey is required
-    // Ollama/local providers may not need an API key
-    const provider = llm.provider.toLowerCase();
-    const requiresApiKey = provider !== "ollama" && provider !== "local";
-    if (requiresApiKey && (!llm.apiKey || llm.apiKey.trim() === "")) {
-      throw new Error(
-        `llm.apiKey is required for provider "${llm.provider}". ` +
-        "Set env AUTOCOMMIT_API_KEY.",
+    if (normalizedRoot.requestGuards !== undefined) {
+      out.requestGuards = this.normalizeTomlRequestGuards(normalizedRoot.requestGuards);
+    }
+    return out;
+  }
+
+  private normalizeTomlLLM(rawLLM: unknown): NonNullable<PartialRuntimeConfig["llm"]> {
+    const llm: Record<string, unknown> = assertIsObject(rawLLM, "llm");
+    assertOnlyKnownKeys(
+      llm,
+      [
+        "provider",
+        "model",
+        "baseUrl",
+        "temperature",
+        "maxTokens",
+        "topP",
+        "frequencyPenalty",
+        "presencePenalty",
+        "apiKey",
+      ],
+      "llm",
+    );
+
+    const out: NonNullable<PartialRuntimeConfig["llm"]> = {};
+
+    if (llm.provider !== undefined) {
+      out.provider = assertIsString(llm.provider, "llm.provider").trim();
+    }
+
+    if (llm.model !== undefined) {
+      out.model = assertIsString(llm.model, "llm.model").trim();
+    }
+    if (llm.apiKey !== undefined) {
+      console.warn(
+        "Warning: 'apiKey' is set in the TOML config file. " +
+        "This is a security risk as sensitive credentials may be accidentally committed to version control or exposed in logs. " +
+        "Consider using the environment variable 'AUTOCOMMIT_API_KEY' instead for better security."
+      );
+      out.apiKey = assertIsString(llm.apiKey, "llm.apiKey").trim();
+    }
+    if (llm.baseUrl !== undefined) {
+      const baseUrl = assertIsString(llm.baseUrl, "llm.baseUrl").trim();
+      if (baseUrl !== "") {
+        out.baseUrl = baseUrl;
+      }
+    }
+
+    if (llm.temperature !== undefined) {
+      out.temperature = assertIsTomlFloat(llm.temperature, "llm.temperature");
+    }
+    if (llm.maxTokens !== undefined) {
+      out.maxTokens = assertIsTomlInt(llm.maxTokens, "llm.maxTokens");
+    }
+    if (llm.topP !== undefined) {
+      out.topP = assertIsTomlFloat(llm.topP, "llm.topP");
+    }
+    if (llm.frequencyPenalty !== undefined) {
+      out.frequencyPenalty = assertIsTomlFloat(
+        llm.frequencyPenalty,
+        "llm.frequencyPenalty",
       );
     }
 
-    // const p = llm.modelParams;
-    if (llm.temperature !== undefined && (llm.temperature < 0 || llm.temperature > 2)) {
-      throw new Error("temperature must be between 0 and 2");
-    }
-    if (llm.topP !== undefined && (llm.topP < 0 || llm.topP > 1)) {
-      throw new Error("topP must be between 0 and 1");
-    }
-    if (llm.maxTokens !== undefined && llm.maxTokens <= 0) {
-      throw new Error("maxTokens must be > 0");
+    if (llm.presencePenalty !== undefined) {
+      out.presencePenalty = assertIsTomlFloat(
+        llm.presencePenalty,
+        "llm.presencePenalty",
+      );
     }
 
-    // requestGuards
-    if (requestGuards.retry.maxRetries < 0) {
-      throw new Error("retry.maxRetries must be >= 0");
-    }
-    if (requestGuards.retry.initialDelayMs < 0) {
-      throw new Error("retry.initialDelayMs must be >= 0");
-    }
-    if (requestGuards.retry.maxDelayMs < 0) {
-      throw new Error("retry.maxDelayMs must be >= 0");
-    }
-    if (requestGuards.retry.factor <= 0) {
-      throw new Error("retry.factor must be > 0");
-    }
-    if (requestGuards.timeout.timeoutMs <= 0) {
-      throw new Error("timeout.timeoutMs must be > 0");
-    }
-    if (requestGuards.rateLimiter.maxRequestsPerMinute <= 0) {
-      throw new Error("rateLimiter.maxRequestsPerMinute must be > 0");
-    }
-    if (requestGuards.rateLimiter.maxQueueSize <= 0) {
-      throw new Error("rateLimiter.maxQueueSize must be > 0");
-    }
-    if (requestGuards.rateLimiter.requestTimeout <= 0) {
-      throw new Error("rateLimiter.requestTimeout must be > 0");
-    }
+    return out;
   }
 
+  private normalizeTomlRequestGuards(
+    rawRequestGuards: unknown,
+  ): NonNullable<PartialRuntimeConfig["requestGuards"]> {
+    const requestGuards: Record<string, unknown> = assertIsObject(rawRequestGuards, "requestGuards");
+    assertOnlyKnownKeys(
+      requestGuards,
+      ["retry", "timeout", "rateLimiter"],
+      "requestGuards",
+    );
+
+    const out: NonNullable<PartialRuntimeConfig["requestGuards"]> = {};
+
+    if (requestGuards.retry !== undefined) {
+      const retry = assertIsObject(requestGuards.retry, "requestGuards.retry");
+      assertOnlyKnownKeys(
+        retry,
+        ["maxRetries", "initialDelayMs", "maxDelayMs", "factor", "jitter"],
+        "requestGuards.retry",
+      );
+
+      const retryOut: NonNullable<
+        NonNullable<PartialRuntimeConfig["requestGuards"]>["retry"]
+      > = {};
+
+      if (retry.maxRetries !== undefined) {
+        retryOut.maxRetries = assertIsTomlInt(
+          retry.maxRetries,
+          "requestGuards.retry.maxRetries",
+        );
+      }
+      if (retry.initialDelayMs !== undefined) {
+        retryOut.initialDelayMs = assertIsTomlInt(
+          retry.initialDelayMs,
+          "requestGuards.retry.initialDelayMs",
+        );
+      }
+      if (retry.maxDelayMs !== undefined) {
+        retryOut.maxDelayMs = assertIsTomlInt(
+          retry.maxDelayMs,
+          "requestGuards.retry.maxDelayMs",
+        );
+      }
+      if (retry.factor !== undefined) {
+        retryOut.factor = assertIsTomlFloat(
+          retry.factor,
+          "requestGuards.retry.factor",
+        );
+      }
+      if (retry.jitter !== undefined) {
+        retryOut.jitter = assertIsTomlBool(
+          retry.jitter,
+          "requestGuards.retry.jitter",
+        );
+      }
+
+      out.retry = retryOut;
+    }
+
+    if (requestGuards.timeout !== undefined) {
+      const timeout = assertIsObject(requestGuards.timeout, "requestGuards.timeout");
+      assertOnlyKnownKeys(timeout, ["timeoutMs"], "requestGuards.timeout");
+
+      const timeoutOut: NonNullable<
+        NonNullable<PartialRuntimeConfig["requestGuards"]>["timeout"]
+      > = {};
+
+      if (timeout.timeoutMs !== undefined) {
+        timeoutOut.timeoutMs = assertIsTomlInt(
+          timeout.timeoutMs,
+          "requestGuards.timeout.timeoutMs",
+        );
+      }
+      out.timeout = timeoutOut;
+    }
+
+    if (requestGuards.rateLimiter !== undefined) {
+      const rateLimiter = assertIsObject(requestGuards.rateLimiter, "requestGuards.rateLimiter");
+      assertOnlyKnownKeys(
+        rateLimiter,
+        ["maxRequestsPerMinute", "maxQueueSize", "requestTimeout"],
+        "requestGuards.rateLimiter",
+      );
+
+      const rateLimiterOut: NonNullable<
+        NonNullable<PartialRuntimeConfig["requestGuards"]>["rateLimiter"]
+      > = {};
+
+      if (rateLimiter.maxRequestsPerMinute !== undefined) {
+        rateLimiterOut.maxRequestsPerMinute = assertIsTomlInt(
+          rateLimiter.maxRequestsPerMinute,
+          "requestGuards.rateLimiter.maxRequestsPerMinute",
+        );
+      }
+      if (rateLimiter.maxQueueSize !== undefined) {
+        rateLimiterOut.maxQueueSize = assertIsTomlInt(
+          rateLimiter.maxQueueSize,
+          "requestGuards.rateLimiter.maxQueueSize",
+        );
+      }
+      if (rateLimiter.requestTimeout !== undefined) {
+        rateLimiterOut.requestTimeout = assertIsTomlInt(
+          rateLimiter.requestTimeout,
+          "requestGuards.rateLimiter.requestTimeout",
+        );
+      }
+
+      out.rateLimiter = rateLimiterOut;
+    }
+    return out;
+  }
+  
   private errorMsg(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
   }
-
 }
-
