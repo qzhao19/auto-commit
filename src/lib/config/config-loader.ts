@@ -5,7 +5,7 @@ import {
   type RuntimeConfig,
   type PartialRuntimeConfig,
 } from "../../shared/types/index";
-import { DEFAULT_LLM_CONFIG, DEFAULT_REQUEST_GUARDS_CONFIG } from "../../shared/constants/index"
+import { DEFAULT_LLM_CONFIG, DEFAULT_REQUEST_GUARDS_CONFIG } from "../../shared/constants/index";
 import {
   configValidate,
   deepMerge,
@@ -61,7 +61,7 @@ export class ConfigLoader {
       tomlPartialConfig,
       envPartialConfig,
       cliPartialConfig,
-    )
+    );
 
     configValidate(runtimeConfig);
 
@@ -74,7 +74,7 @@ export class ConfigLoader {
     return {
       llm: DEFAULT_LLM_CONFIG,
       requestGuards: DEFAULT_REQUEST_GUARDS_CONFIG,
-    }
+    };
   }
 
   // ── Layer 1: TOML File ──
