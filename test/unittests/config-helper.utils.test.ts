@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { deepMerge } from "../../src/lib/utils/config-utils";
+import { deepMerge } from "../../src/lib/utils/config/index";
 import {
   type RuntimeConfig,
   type PartialRuntimeConfig,
