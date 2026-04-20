@@ -1,4 +1,4 @@
-import { type RequestGuardsConfig } from "./request-guards";
+import { type RequestGuardsConfig, type InternalRequestGuardsConfig } from "./request-guards";
 import { type LLMGenerationConfig } from "./model-settings";
 
 /**
@@ -11,7 +11,7 @@ import { type LLMGenerationConfig } from "./model-settings";
  * - modelParams: Default generation parameters, can be overridden per invoke() call 
  * - requestConfig: LLM request config (retry / timeout / rate-limiter)
  */
-export interface ProviderConfig {
+interface ProviderConfig {
   apiKey: string;
   baseUrl: string;
   model: string;
@@ -20,3 +20,9 @@ export interface ProviderConfig {
   requestGuardsConfig?: RequestGuardsConfig;
 }
 
+/**
+ * Internally parsed configuration (ready for direct use by retry guards)
+ */
+export interface ResolvedProviderConfig extends Omit<ProviderConfig, "requestGuardsConfig"> {
+  requestGuardsConfig: InternalRequestGuardsConfig;
+}
