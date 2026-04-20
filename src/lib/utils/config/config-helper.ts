@@ -1,6 +1,8 @@
 import { 
   type RuntimeConfig, 
-  type PartialRuntimeConfig 
+  type PartialRuntimeConfig,
+  type InternalRuntimeConfig,
+  type ResolvedProviderConfig,
 } from "../../../shared/types/index";
 
 type DeepPartial<T> = {
@@ -90,7 +92,7 @@ export function ensureRateLimiterConfig(
   return requestGuards.rateLimiter;
 }
 
-export function configValidate(config: RuntimeConfig): void {
+export function validateConfig(config: RuntimeConfig): void {
   const { llm, requestGuards } = config;
 
   if (!llm.provider || llm.provider.trim() === "") {
@@ -158,4 +160,31 @@ export function configValidate(config: RuntimeConfig): void {
   if (requestGuards.rateLimiter.requestTimeout <= 0) {
     throw new Error("rateLimiter.requestTimeout must be > 0");
   }
+}
+
+
+export function toProviderConfig(config: InternalRuntimeConfig): ResolvedProviderConfig {
+  const provider = config.llm.provider;
+  const model = config.llm.model;
+
+  if (!provider || !model) {
+    throw new Error(
+      "Internal invariant violated: provider/model must be resolved before mapping to ProviderConfig."
+    );
+  }
+
+  return {
+    provider,
+    model,
+    apiKey: config.llm.apiKey!,
+    baseUrl: config.llm.baseUrl!,
+    generationConfig: {
+      temperature: config.llm.temperature,
+      maxTokens: config.llm.maxTokens,
+      topP: config.llm.topP,
+      frequencyPenalty: config.llm.frequencyPenalty,
+      presencePenalty: config.llm.presencePenalty,
+    },
+    requestGuardsConfig: config.requestGuards,
+  };
 }
