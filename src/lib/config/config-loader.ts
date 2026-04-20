@@ -4,16 +4,10 @@ import { join } from "node:path";
 import {
   type RuntimeConfig,
   type PartialRuntimeConfig,
+  type InternalRuntimeConfig,
+  type ResolvedProviderConfig,
 } from "../../shared/types/index";
 import { DEFAULT_LLM_CONFIG, DEFAULT_REQUEST_GUARDS_CONFIG } from "../../shared/constants/index";
-import {
-  configValidate,
-  deepMerge,
-  ensureLLMConfig,
-  ensureRateLimiterConfig,
-  ensureRetryConfig,
-  ensureTimeoutConfig,
-} from "../utils/config/index";
 import {
   assertOnlyKnownKeys,
   assertIsBool,
@@ -24,7 +18,15 @@ import {
   assertIsTomlBool,
   assertIsTomlFloat,
   assertIsTomlInt,
+  validateConfig,
+  deepMerge,
+  ensureLLMConfig,
+  ensureRateLimiterConfig,
+  ensureRetryConfig,
+  ensureTimeoutConfig,
+  toProviderConfig,
 } from "../utils/config/index";
+
 
 export class ConfigLoader {
   private readonly argv: string[];
@@ -41,7 +43,7 @@ export class ConfigLoader {
     this.configFilePath = options?.configFilePath ?? join(homedir(), "autocommit.toml");
   }
 
-  public async load(): Promise<RuntimeConfig> {
+  public async load(): Promise<ResolvedProviderConfig> {
     // Create deault config
     const defaultConfig: RuntimeConfig = this.createDefaultConfig();
 
@@ -63,9 +65,16 @@ export class ConfigLoader {
       cliPartialConfig,
     );
 
-    configValidate(runtimeConfig);
+    // Validates the provided runtime configuration object
+    validateConfig(runtimeConfig);
 
-    return runtimeConfig;
+    // Inject retryableErrors into RuntimeConfig object 
+    const internalRuntimeConfig: InternalRuntimeConfig = this.injectRetryableErrors(runtimeConfig);
+    
+    // Transform into ResolvedProviderConfig object to fit provier model
+    const resolvedProviderConfig: ResolvedProviderConfig = toProviderConfig(internalRuntimeConfig);
+
+    return resolvedProviderConfig;
   }
 
   // ── Layer 0: Defaults ──
@@ -223,6 +232,17 @@ export class ConfigLoader {
         rl.requestTimeout = assertIsInt(value, "AUTOCOMMIT_RATE_LIMITER_REQUEST_TIMEOUT");
       },
     },
+  ];
+
+  // Default set of error patterns considered retryable.
+  private static readonly DEFAULT_RETRYABLE_ERRORS: RegExp[] = [
+    /ECONNRESET/i,          // Connection reset by peer
+    /ETIMEDOUT/i,           // Operation timed out
+    /ECONNREFUSED/i,        // Connection refused
+    /socket hang up/i,      // Socket hang up
+    /\b429\b/,              // Too Many Requests (rate limiting)
+    /\b503\b/,              // Service Unavailable
+    /\b502\b/,              // Bad Gateway
   ];
 
   /**
@@ -549,7 +569,26 @@ export class ConfigLoader {
     }
     return out;
   }
-  
+
+  private injectRetryableErrors(config: RuntimeConfig): InternalRuntimeConfig {
+    return {
+      ...config,
+      requestGuards: {
+        ...config.requestGuards,
+        retry: {
+          ...config.requestGuards.retry,
+          retryableErrors: this.createRetryableErrors(),
+        }
+      }
+    };
+  }
+
+  private createRetryableErrors(): RegExp[] {
+    return ConfigLoader.DEFAULT_RETRYABLE_ERRORS.map(
+      (pattern) => new RegExp(pattern.source, pattern.flags),
+    );
+  }
+
   private errorMsg(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
   }
