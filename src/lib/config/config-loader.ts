@@ -380,27 +380,27 @@ export class ConfigLoader {
     assertOnlyKnownKeys(
       llm,
       [
-        "provider",
-        "model",
-        "baseUrl",
-        "temperature",
-        "maxTokens",
-        "topP",
-        "frequencyPenalty",
-        "presencePenalty",
-        "apiKey",
+        "provider", "model", "baseUrl",
+        "temperature", "maxTokens", "topP",
+        "frequencyPenalty", "presencePenalty", "apiKey",
       ],
       "llm",
     );
+    const normalizeOptionalString = (value: unknown, name: string) => {
+      const str = assertIsString(value, name).trim();
+      return str !== "" ? str : undefined;
+    };
+
 
     const out: NonNullable<PartialRuntimeConfig["llm"]> = {};
 
     if (llm.provider !== undefined) {
-      out.provider = assertIsString(llm.provider, "llm.provider").trim();
+      const value = normalizeOptionalString(llm.provider, "llm.provider");
+      if (value !== undefined) out.provider = value;
     }
-
     if (llm.model !== undefined) {
-      out.model = assertIsString(llm.model, "llm.model").trim();
+      const value = normalizeOptionalString(llm.model, "llm.model");
+      if (value !== undefined) out.model = value;
     }
     if (llm.apiKey !== undefined) {
       console.warn(
@@ -411,12 +411,9 @@ export class ConfigLoader {
       out.apiKey = assertIsString(llm.apiKey, "llm.apiKey").trim();
     }
     if (llm.baseUrl !== undefined) {
-      const baseUrl = assertIsString(llm.baseUrl, "llm.baseUrl").trim();
-      if (baseUrl !== "") {
-        out.baseUrl = baseUrl;
-      }
+      const value = normalizeOptionalString(llm.baseUrl, "llm.baseUrl");
+      if (value !== undefined) out.baseUrl = value;
     }
-
     if (llm.temperature !== undefined) {
       out.temperature = assertIsTomlFloat(llm.temperature, "llm.temperature");
     }
@@ -432,7 +429,6 @@ export class ConfigLoader {
         "llm.frequencyPenalty",
       );
     }
-
     if (llm.presencePenalty !== undefined) {
       out.presencePenalty = assertIsTomlFloat(
         llm.presencePenalty,
