@@ -10,7 +10,7 @@ import {
 
 // ── Helpers ──
 
-/** Minimal env that satisfies configValidate (provider + model + apiKey required). */
+/** Minimal env that satisfies validateConfig (provider + model + apiKey required). */
 function validEnv(extra: Record<string, string> = {}): NodeJS.ProcessEnv {
   return {
     AUTOCOMMIT_PROVIDER: "openai",
@@ -59,12 +59,13 @@ describe("Layer 0 – defaults only", () => {
     });
     const cfg = await loader.load();
 
-    expect(cfg.llm.temperature).toBe(DEFAULT_LLM_CONFIG.temperature);
-    expect(cfg.llm.maxTokens).toBe(DEFAULT_LLM_CONFIG.maxTokens);
-    expect(cfg.llm.topP).toBe(DEFAULT_LLM_CONFIG.topP);
-    expect(cfg.llm.frequencyPenalty).toBe(DEFAULT_LLM_CONFIG.frequencyPenalty);
-    expect(cfg.llm.presencePenalty).toBe(DEFAULT_LLM_CONFIG.presencePenalty);
-    expect(cfg.requestGuards).toEqual(DEFAULT_REQUEST_GUARDS_CONFIG);
+    expect(cfg.generationConfig!.temperature).toBe(DEFAULT_LLM_CONFIG.temperature);
+    expect(cfg.generationConfig!.maxTokens).toBe(DEFAULT_LLM_CONFIG.maxTokens);
+    expect(cfg.generationConfig!.topP).toBe(DEFAULT_LLM_CONFIG.topP);
+    expect(cfg.generationConfig!.frequencyPenalty).toBe(DEFAULT_LLM_CONFIG.frequencyPenalty);
+    expect(cfg.generationConfig!.presencePenalty).toBe(DEFAULT_LLM_CONFIG.presencePenalty);
+    const { retryableErrors: _, ...retryPublic } = cfg.requestGuardsConfig.retry;
+    expect({ ...cfg.requestGuardsConfig, retry: retryPublic }).toEqual(DEFAULT_REQUEST_GUARDS_CONFIG);
   });
 });
 
@@ -109,25 +110,25 @@ requestTimeout = 15000
     });
     const cfg = await loader.load();
 
-    expect(cfg.llm.provider).toBe("deepseek");
-    expect(cfg.llm.model).toBe("deepseek-chat");
-    expect(cfg.llm.baseUrl).toBe("https://api.deepseek.com/v1");
-    expect(cfg.llm.apiKey).toBe("sk-ds-key");
-    expect(cfg.llm.temperature).toBe(0.5);
-    expect(cfg.llm.maxTokens).toBe(2048);
-    expect(cfg.llm.topP).toBe(0.8);
-    expect(cfg.llm.frequencyPenalty).toBe(0.1);
-    expect(cfg.llm.presencePenalty).toBe(0.2);
+    expect(cfg.provider).toBe("deepseek");
+    expect(cfg.model).toBe("deepseek-chat");
+    expect(cfg.baseUrl).toBe("https://api.deepseek.com/v1");
+    expect(cfg.apiKey).toBe("sk-ds-key");
+    expect(cfg.generationConfig!.temperature).toBe(0.5);
+    expect(cfg.generationConfig!.maxTokens).toBe(2048);
+    expect(cfg.generationConfig!.topP).toBe(0.8);
+    expect(cfg.generationConfig!.frequencyPenalty).toBe(0.1);
+    expect(cfg.generationConfig!.presencePenalty).toBe(0.2);
 
-    expect(cfg.requestGuards.retry.maxRetries).toBe(5);
-    expect(cfg.requestGuards.retry.initialDelayMs).toBe(500);
-    expect(cfg.requestGuards.retry.maxDelayMs).toBe(5000);
-    expect(cfg.requestGuards.retry.factor).toBe(3);
-    expect(cfg.requestGuards.retry.jitter).toBe(false);
-    expect(cfg.requestGuards.timeout.timeoutMs).toBe(15000);
-    expect(cfg.requestGuards.rateLimiter.maxRequestsPerMinute).toBe(10);
-    expect(cfg.requestGuards.rateLimiter.maxQueueSize).toBe(500);
-    expect(cfg.requestGuards.rateLimiter.requestTimeout).toBe(15000);
+    expect(cfg.requestGuardsConfig.retry.maxRetries).toBe(5);
+    expect(cfg.requestGuardsConfig.retry.initialDelayMs).toBe(500);
+    expect(cfg.requestGuardsConfig.retry.maxDelayMs).toBe(5000);
+    expect(cfg.requestGuardsConfig.retry.factor).toBe(3);
+    expect(cfg.requestGuardsConfig.retry.jitter).toBe(false);
+    expect(cfg.requestGuardsConfig.timeout.timeoutMs).toBe(15000);
+    expect(cfg.requestGuardsConfig.rateLimiter.maxRequestsPerMinute).toBe(10);
+    expect(cfg.requestGuardsConfig.rateLimiter.maxQueueSize).toBe(500);
+    expect(cfg.requestGuardsConfig.rateLimiter.requestTimeout).toBe(15000);
   });
 
   test("partial TOML only overrides specified fields, rest stay default", async () => {
@@ -146,10 +147,11 @@ temperature = 1.2
     });
     const cfg = await loader.load();
 
-    expect(cfg.llm.temperature).toBe(1.2);
-    expect(cfg.llm.maxTokens).toBe(DEFAULT_LLM_CONFIG.maxTokens);
-    expect(cfg.llm.topP).toBe(DEFAULT_LLM_CONFIG.topP);
-    expect(cfg.requestGuards).toEqual(DEFAULT_REQUEST_GUARDS_CONFIG);
+    expect(cfg.generationConfig!.temperature).toBe(1.2);
+    expect(cfg.generationConfig!.maxTokens).toBe(DEFAULT_LLM_CONFIG.maxTokens);
+    expect(cfg.generationConfig!.topP).toBe(DEFAULT_LLM_CONFIG.topP);
+    const { retryableErrors: _, ...retryPublic } = cfg.requestGuardsConfig.retry;
+    expect({ ...cfg.requestGuardsConfig, retry: retryPublic }).toEqual(DEFAULT_REQUEST_GUARDS_CONFIG);
   });
 
   test("empty baseUrl in TOML is omitted (falls back to default)", async () => {
@@ -168,7 +170,7 @@ baseUrl = ""
     });
     const cfg = await loader.load();
 
-    expect(cfg.llm.baseUrl).toBeUndefined();
+    expect(cfg.baseUrl).toBeUndefined();
   });
 
   test("backward compatibility: RequestGuards (PascalCase) → requestGuards", async () => {
@@ -189,7 +191,7 @@ maxRetries = 10
     });
     const cfg = await loader.load();
 
-    expect(cfg.requestGuards.retry.maxRetries).toBe(10);
+    expect(cfg.requestGuardsConfig.retry.maxRetries).toBe(10);
   });
 
   test("throws on unknown top-level key in TOML", async () => {
@@ -369,8 +371,8 @@ timeoutMs = 5000
     });
     const cfg = await loader.load();
 
-    expect(cfg.requestGuards.timeout.timeoutMs).toBe(5000);
-    expect(cfg.llm.provider).toBe("openai");
+    expect(cfg.requestGuardsConfig.timeout.timeoutMs).toBe(5000);
+    expect(cfg.provider).toBe("openai");
   });
 });
 
@@ -389,10 +391,10 @@ describe("Layer 2 – environment variables", () => {
     });
     const cfg = await loader.load();
 
-    expect(cfg.llm.provider).toBe("openai");
-    expect(cfg.llm.model).toBe("gpt-4o-mini");
-    expect(cfg.llm.apiKey).toBe("sk-test-key");
-    expect(cfg.llm.baseUrl).toBe("https://custom.api/v1");
+    expect(cfg.provider).toBe("openai");
+    expect(cfg.model).toBe("gpt-4o-mini");
+    expect(cfg.apiKey).toBe("sk-test-key");
+    expect(cfg.baseUrl).toBe("https://custom.api/v1");
   });
 
   test("overrides retry config from env", async () => {
@@ -409,11 +411,11 @@ describe("Layer 2 – environment variables", () => {
     });
     const cfg = await loader.load();
 
-    expect(cfg.requestGuards.retry.maxRetries).toBe(5);
-    expect(cfg.requestGuards.retry.initialDelayMs).toBe(2000);
-    expect(cfg.requestGuards.retry.maxDelayMs).toBe(20000);
-    expect(cfg.requestGuards.retry.factor).toBe(3.5);
-    expect(cfg.requestGuards.retry.jitter).toBe(false);
+    expect(cfg.requestGuardsConfig.retry.maxRetries).toBe(5);
+    expect(cfg.requestGuardsConfig.retry.initialDelayMs).toBe(2000);
+    expect(cfg.requestGuardsConfig.retry.maxDelayMs).toBe(20000);
+    expect(cfg.requestGuardsConfig.retry.factor).toBe(3.5);
+    expect(cfg.requestGuardsConfig.retry.jitter).toBe(false);
   });
 
   test("overrides timeout from env", async () => {
@@ -426,7 +428,7 @@ describe("Layer 2 – environment variables", () => {
     });
     const cfg = await loader.load();
 
-    expect(cfg.requestGuards.timeout.timeoutMs).toBe(60000);
+    expect(cfg.requestGuardsConfig.timeout.timeoutMs).toBe(60000);
   });
 
   test("overrides rateLimiter from env", async () => {
@@ -441,9 +443,9 @@ describe("Layer 2 – environment variables", () => {
     });
     const cfg = await loader.load();
 
-    expect(cfg.requestGuards.rateLimiter.maxRequestsPerMinute).toBe(100);
-    expect(cfg.requestGuards.rateLimiter.maxQueueSize).toBe(5000);
-    expect(cfg.requestGuards.rateLimiter.requestTimeout).toBe(60000);
+    expect(cfg.requestGuardsConfig.rateLimiter.maxRequestsPerMinute).toBe(100);
+    expect(cfg.requestGuardsConfig.rateLimiter.maxQueueSize).toBe(5000);
+    expect(cfg.requestGuardsConfig.rateLimiter.requestTimeout).toBe(60000);
   });
 
   test("empty env vars are ignored", async () => {
@@ -457,8 +459,8 @@ describe("Layer 2 – environment variables", () => {
     });
     const cfg = await loader.load();
 
-    expect(cfg.requestGuards.retry.maxRetries).toBe(DEFAULT_REQUEST_GUARDS_CONFIG.retry.maxRetries);
-    expect(cfg.requestGuards.timeout.timeoutMs).toBe(DEFAULT_REQUEST_GUARDS_CONFIG.timeout.timeoutMs);
+    expect(cfg.requestGuardsConfig.retry.maxRetries).toBe(DEFAULT_REQUEST_GUARDS_CONFIG.retry.maxRetries);
+    expect(cfg.requestGuardsConfig.timeout.timeoutMs).toBe(DEFAULT_REQUEST_GUARDS_CONFIG.timeout.timeoutMs);
   });
 
   test("throws on non-integer env var for integer field", async () => {
@@ -515,9 +517,9 @@ describe("Layer 2 – environment variables", () => {
     });
     const cfg = await loader.load();
 
-    expect(cfg.llm.provider).toBe("deepseek");
-    expect(cfg.llm.model).toBe("deepseek-chat");
-    expect(cfg.llm.apiKey).toBe("sk-trimmed");
+    expect(cfg.provider).toBe("deepseek");
+    expect(cfg.model).toBe("deepseek-chat");
+    expect(cfg.apiKey).toBe("sk-trimmed");
   });
 
   test("env jitter accepts '1' and '0'", async () => {
@@ -526,14 +528,14 @@ describe("Layer 2 – environment variables", () => {
       env: validEnv({ AUTOCOMMIT_RETRY_JITTER: "1" }),
       configFilePath: nonExistentPath(),
     });
-    expect((await loader1.load()).requestGuards.retry.jitter).toBe(true);
+    expect((await loader1.load()).requestGuardsConfig.retry.jitter).toBe(true);
 
     const loader0 = new ConfigLoader({
       argv: EMPTY_ARGV,
       env: validEnv({ AUTOCOMMIT_RETRY_JITTER: "0" }),
       configFilePath: nonExistentPath(),
     });
-    expect((await loader0.load()).requestGuards.retry.jitter).toBe(false);
+    expect((await loader0.load()).requestGuardsConfig.retry.jitter).toBe(false);
   });
 });
 
@@ -550,7 +552,7 @@ describe("Layer 3 – CLI arguments", () => {
     });
     const cfg = await loader.load();
 
-    expect(cfg.llm.temperature).toBe(0.3);
+    expect(cfg.generationConfig!.temperature).toBe(0.3);
   });
 
   test("overrides maxTokens from CLI", async () => {
@@ -561,7 +563,7 @@ describe("Layer 3 – CLI arguments", () => {
     });
     const cfg = await loader.load();
 
-    expect(cfg.llm.maxTokens).toBe(1024);
+    expect(cfg.generationConfig!.maxTokens).toBe(1024);
   });
 
   test("overrides topP from CLI", async () => {
@@ -572,7 +574,7 @@ describe("Layer 3 – CLI arguments", () => {
     });
     const cfg = await loader.load();
 
-    expect(cfg.llm.topP).toBe(0.5);
+    expect(cfg.generationConfig!.topP).toBe(0.5);
   });
 
   test("overrides frequencyPenalty from CLI", async () => {
@@ -583,7 +585,7 @@ describe("Layer 3 – CLI arguments", () => {
     });
     const cfg = await loader.load();
 
-    expect(cfg.llm.frequencyPenalty).toBe(0.7);
+    expect(cfg.generationConfig!.frequencyPenalty).toBe(0.7);
   });
 
   test("overrides presencePenalty from CLI", async () => {
@@ -594,7 +596,7 @@ describe("Layer 3 – CLI arguments", () => {
     });
     const cfg = await loader.load();
 
-    expect(cfg.llm.presencePenalty).toBe(0.4);
+    expect(cfg.generationConfig!.presencePenalty).toBe(0.4);
   });
 
   test("multiple CLI flags at once", async () => {
@@ -605,11 +607,11 @@ describe("Layer 3 – CLI arguments", () => {
     });
     const cfg = await loader.load();
 
-    expect(cfg.llm.temperature).toBe(1.0);
-    expect(cfg.llm.maxTokens).toBe(512);
-    expect(cfg.llm.topP).toBe(0.7);
-    expect(cfg.llm.frequencyPenalty).toBe(DEFAULT_LLM_CONFIG.frequencyPenalty);
-    expect(cfg.llm.presencePenalty).toBe(DEFAULT_LLM_CONFIG.presencePenalty);
+    expect(cfg.generationConfig!.temperature).toBe(1.0);
+    expect(cfg.generationConfig!.maxTokens).toBe(512);
+    expect(cfg.generationConfig!.topP).toBe(0.7);
+    expect(cfg.generationConfig!.frequencyPenalty).toBe(DEFAULT_LLM_CONFIG.frequencyPenalty);
+    expect(cfg.generationConfig!.presencePenalty).toBe(DEFAULT_LLM_CONFIG.presencePenalty);
   });
 
   test("no CLI flags → defaults remain", async () => {
@@ -620,8 +622,8 @@ describe("Layer 3 – CLI arguments", () => {
     });
     const cfg = await loader.load();
 
-    expect(cfg.llm.temperature).toBe(DEFAULT_LLM_CONFIG.temperature);
-    expect(cfg.llm.maxTokens).toBe(DEFAULT_LLM_CONFIG.maxTokens);
+    expect(cfg.generationConfig!.temperature).toBe(DEFAULT_LLM_CONFIG.temperature);
+    expect(cfg.generationConfig!.maxTokens).toBe(DEFAULT_LLM_CONFIG.maxTokens);
   });
 
   test("throws on non-numeric --temperature", async () => {
@@ -662,7 +664,7 @@ describe("Layer 3 – CLI arguments", () => {
     });
     const cfg = await loader.load();
 
-    expect(cfg.llm.temperature).toBe(0.5);
+    expect(cfg.generationConfig!.temperature).toBe(0.5);
   });
 });
 
@@ -687,8 +689,8 @@ temperature = 1.5
     });
     const cfg = await loader.load();
 
-    expect(cfg.llm.temperature).toBe(1.5);
-    expect(cfg.llm.temperature).not.toBe(DEFAULT_LLM_CONFIG.temperature);
+    expect(cfg.generationConfig!.temperature).toBe(1.5);
+    expect(cfg.generationConfig!.temperature).not.toBe(DEFAULT_LLM_CONFIG.temperature);
   });
 
   test("env overrides TOML", async () => {
@@ -714,10 +716,10 @@ maxRetries = 10
     });
     const cfg = await loader.load();
 
-    expect(cfg.llm.provider).toBe("openai");
-    expect(cfg.llm.model).toBe("gpt-4o");
-    expect(cfg.llm.apiKey).toBe("sk-env");
-    expect(cfg.requestGuards.retry.maxRetries).toBe(2);
+    expect(cfg.provider).toBe("openai");
+    expect(cfg.model).toBe("gpt-4o");
+    expect(cfg.apiKey).toBe("sk-env");
+    expect(cfg.requestGuardsConfig.retry.maxRetries).toBe(2);
   });
 
   test("CLI overrides TOML and env", async () => {
@@ -736,7 +738,7 @@ temperature = 0.5
     });
     const cfg = await loader.load();
 
-    expect(cfg.llm.temperature).toBe(1.8);
+    expect(cfg.generationConfig!.temperature).toBe(1.8);
   });
 
   test("full three-layer override chain", async () => {
@@ -765,23 +767,23 @@ maxRetries = 10
     const cfg = await loader.load();
 
     // Provider/model/apiKey: env wins over TOML
-    expect(cfg.llm.provider).toBe("env-provider");
-    expect(cfg.llm.model).toBe("env-model");
-    expect(cfg.llm.apiKey).toBe("sk-env");
+    expect(cfg.provider).toBe("env-provider");
+    expect(cfg.model).toBe("env-model");
+    expect(cfg.apiKey).toBe("sk-env");
     // temperature: CLI wins over TOML
-    expect(cfg.llm.temperature).toBe(1.9);
+    expect(cfg.generationConfig!.temperature).toBe(1.9);
     // maxTokens: TOML wins over default (no CLI/env for it)
-    expect(cfg.llm.maxTokens).toBe(1000);
+    expect(cfg.generationConfig!.maxTokens).toBe(1000);
     // retry.maxRetries: env wins over TOML
-    expect(cfg.requestGuards.retry.maxRetries).toBe(1);
+    expect(cfg.requestGuardsConfig.retry.maxRetries).toBe(1);
   });
 });
 
 // ═════════════════════════════════════════════════════════
-// 6. configValidate – Final Validation
+// 6. validateConfig – Final Validation
 // ═════════════════════════════════════════════════════════
 
-describe("configValidate errors", () => {
+describe("validateConfig errors", () => {
   test("throws when provider is missing", async () => {
     const loader = new ConfigLoader({
       argv: EMPTY_ARGV,
@@ -832,7 +834,7 @@ describe("configValidate errors", () => {
     });
 
     const cfg = await loader.load();
-    expect(cfg.llm.provider).toBe("ollama");
+    expect(cfg.provider).toBe("ollama");
   });
 
   test("does not throw when apiKey is missing for local provider", async () => {
@@ -846,7 +848,7 @@ describe("configValidate errors", () => {
     });
 
     const cfg = await loader.load();
-    expect(cfg.llm.provider).toBe("local");
+    expect(cfg.provider).toBe("local");
   });
 
   test("throws when temperature > 2", async () => {
@@ -955,9 +957,9 @@ presencePenalty = 0
     });
     const cfg = await loader.load();
 
-    expect(cfg.llm.temperature).toBe(1);
-    expect(cfg.llm.maxTokens).toBe(512);
-    expect(cfg.llm.topP).toBe(0);
+    expect(cfg.generationConfig!.temperature).toBe(1);
+    expect(cfg.generationConfig!.maxTokens).toBe(512);
+    expect(cfg.generationConfig!.topP).toBe(0);
   });
 
   test("TOML jitter = true (native bool)", async () => {
@@ -978,7 +980,7 @@ jitter = true
     });
     const cfg = await loader.load();
 
-    expect(cfg.requestGuards.retry.jitter).toBe(true);
+    expect(cfg.requestGuardsConfig.retry.jitter).toBe(true);
   });
 
   test("TOML jitter = false (native bool)", async () => {
@@ -999,7 +1001,7 @@ jitter = false
     });
     const cfg = await loader.load();
 
-    expect(cfg.requestGuards.retry.jitter).toBe(false);
+    expect(cfg.requestGuardsConfig.retry.jitter).toBe(false);
   });
 
   test("argv starting with non-flag gets sliced (simulates bun run)", async () => {
@@ -1010,7 +1012,7 @@ jitter = false
     });
     const cfg = await loader.load();
 
-    expect(cfg.llm.temperature).toBe(0.6);
+    expect(cfg.generationConfig!.temperature).toBe(0.6);
   });
 
   test("TOML with empty requestGuards sections falls back to defaults", async () => {
@@ -1034,7 +1036,8 @@ apiKey = "sk-key"
     });
     const cfg = await loader.load();
 
-    expect(cfg.requestGuards).toEqual(DEFAULT_REQUEST_GUARDS_CONFIG);
+    const { retryableErrors: _, ...retryPublic } = cfg.requestGuardsConfig.retry;
+    expect({ ...cfg.requestGuardsConfig, retry: retryPublic }).toEqual(DEFAULT_REQUEST_GUARDS_CONFIG);
   });
 
   test("env var with only whitespace is ignored", async () => {
@@ -1045,7 +1048,7 @@ apiKey = "sk-key"
     });
     const cfg = await loader.load();
 
-    expect(cfg.llm.baseUrl).toBe(DEFAULT_LLM_CONFIG.baseUrl);
+    expect(cfg.baseUrl).toBe(DEFAULT_LLM_CONFIG.baseUrl!);
   });
 
   test("CLI --temperature 0 is valid (boundary)", async () => {
@@ -1056,7 +1059,7 @@ apiKey = "sk-key"
     });
     const cfg = await loader.load();
 
-    expect(cfg.llm.temperature).toBe(0);
+    expect(cfg.generationConfig!.temperature).toBe(0);
   });
 
   test("CLI --temperature 2 is valid (boundary)", async () => {
@@ -1067,7 +1070,7 @@ apiKey = "sk-key"
     });
     const cfg = await loader.load();
 
-    expect(cfg.llm.temperature).toBe(2);
+    expect(cfg.generationConfig!.temperature).toBe(2);
   });
 
   test("CLI --top-p 0 and 1 are valid (boundaries)", async () => {
@@ -1076,14 +1079,14 @@ apiKey = "sk-key"
       env: validEnv(),
       configFilePath: nonExistentPath(),
     });
-    expect((await loader0.load()).llm.topP).toBe(0);
+    expect((await loader0.load()).generationConfig!.topP).toBe(0);
 
     const loader1 = new ConfigLoader({
       argv: ["--top-p", "1"],
       env: validEnv(),
       configFilePath: nonExistentPath(),
     });
-    expect((await loader1.load()).llm.topP).toBe(1);
+    expect((await loader1.load()).generationConfig!.topP).toBe(1);
   });
 
   test("TOML does not mutate DEFAULT constants", async () => {
@@ -1107,5 +1110,61 @@ maxRetries = 99
     await loader.load();
 
     expect(DEFAULT_REQUEST_GUARDS_CONFIG.retry.maxRetries).toBe(originalRetry.maxRetries);
+  });
+});
+
+// ═════════════════════════════════════════════════════════
+// 8. retryableErrors Injection
+// ═════════════════════════════════════════════════════════
+
+describe("retryableErrors injection", () => {
+  test("retryableErrors are injected into requestGuardsConfig.retry", async () => {
+    const loader = new ConfigLoader({
+      argv: EMPTY_ARGV,
+      env: validEnv(),
+      configFilePath: nonExistentPath(),
+    });
+    const cfg = await loader.load();
+
+    expect(cfg.requestGuardsConfig.retry.retryableErrors).toBeInstanceOf(Array);
+    expect(cfg.requestGuardsConfig.retry.retryableErrors.length).toBeGreaterThan(0);
+  });
+
+  test("retryableErrors includes default network/HTTP error patterns", async () => {
+    const loader = new ConfigLoader({
+      argv: EMPTY_ARGV,
+      env: validEnv(),
+      configFilePath: nonExistentPath(),
+    });
+    const cfg = await loader.load();
+
+    const patterns = cfg.requestGuardsConfig.retry.retryableErrors;
+    expect(patterns.some((r) => r.test("ECONNRESET"))).toBe(true);
+    expect(patterns.some((r) => r.test("ETIMEDOUT"))).toBe(true);
+    expect(patterns.some((r) => r.test("ECONNREFUSED"))).toBe(true);
+    expect(patterns.some((r) => r.test("socket hang up"))).toBe(true);
+    expect(patterns.some((r) => r.test("429"))).toBe(true);
+    expect(patterns.some((r) => r.test("503"))).toBe(true);
+    expect(patterns.some((r) => r.test("502"))).toBe(true);
+  });
+
+  test("retryableErrors are independent copies (not shared references)", async () => {
+    const loader1 = new ConfigLoader({
+      argv: EMPTY_ARGV,
+      env: validEnv(),
+      configFilePath: nonExistentPath(),
+    });
+    const loader2 = new ConfigLoader({
+      argv: EMPTY_ARGV,
+      env: validEnv(),
+      configFilePath: nonExistentPath(),
+    });
+
+    const cfg1 = await loader1.load();
+    const cfg2 = await loader2.load();
+
+    expect(cfg1.requestGuardsConfig.retry.retryableErrors).not.toBe(
+      cfg2.requestGuardsConfig.retry.retryableErrors,
+    );
   });
 });
