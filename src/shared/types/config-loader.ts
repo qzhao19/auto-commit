@@ -1,5 +1,9 @@
 import { type LLMConfig, type PartialLLMConfig } from "./model-settings";
-import { type RequestGuardsConfig, type PartialRequestGuardsConfig } from "./request-guards";
+import { 
+  type RequestGuardsConfig, 
+  type PartialRequestGuardsConfig,
+  type InternalRequestGuardsConfig,
+} from "./request-guards";
 
 /**
  * Complete runtime configuration; 
@@ -20,4 +24,9 @@ export type PartialRuntimeConfig = {
   requestGuards?: PartialRequestGuardsConfig;
 };
 
-export type ConfigSource = "defaults" | "toml" | "env" | "cli";
+/**
+ * Internal configuration output by ConfigLoader (with retryableErrors injected)
+ */
+export interface InternalRuntimeConfig extends Omit<RuntimeConfig, "requestGuards"> {
+  requestGuards: InternalRequestGuardsConfig;
+}
