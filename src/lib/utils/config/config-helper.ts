@@ -176,8 +176,8 @@ export function toProviderConfig(config: InternalRuntimeConfig): ResolvedProvide
   return {
     provider,
     model,
-    apiKey: config.llm.apiKey!,
-    baseUrl: config.llm.baseUrl!,
+    apiKey: config.llm.apiKey,
+    baseUrl: config.llm.baseUrl,
     generationConfig: {
       temperature: config.llm.temperature,
       maxTokens: config.llm.maxTokens,
