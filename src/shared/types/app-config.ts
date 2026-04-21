@@ -2,18 +2,12 @@ import { type RequestGuardsConfig, type InternalRequestGuardsConfig } from "./re
 import { type LLMGenerationConfig } from "./model-settings";
 
 /**
- * Provider-level configuration (per adapter instance).
- * 
- * Properties:
- * - apiKey: API key for authentication (not required for local/Ollama)
- * - baseUrl: Custom API base URL (e.g., DeepSeek endpoint, Ollama localhost)
- * - model: Default model identifier or name
- * - modelParams: Default generation parameters, can be overridden per invoke() call 
- * - requestConfig: LLM request config (retry / timeout / rate-limiter)
+ * Provider-level configuration (user-facing / factory-facing).
+ * apiKey/baseUrl are optional because local/ollama style providers may not require them.
  */
 interface ProviderConfig {
-  apiKey: string;
-  baseUrl: string;
+  apiKey?: string;
+  baseUrl?: string;
   model: string;
   provider: string;
   generationConfig?: LLMGenerationConfig;
@@ -21,8 +15,19 @@ interface ProviderConfig {
 }
 
 /**
- * Internally parsed configuration (ready for direct use by retry guards)
+ * Fully resolved provider config returned by ConfigLoader.
  */
-export interface ResolvedProviderConfig extends Omit<ProviderConfig, "requestGuardsConfig"> {
+export interface ResolvedProviderConfig extends Omit<ProviderConfig, "requestGuardsConfig" | "generationConfig"> {
+  generationConfig: LLMGenerationConfig;
   requestGuardsConfig: InternalRequestGuardsConfig;
+}
+
+/**
+ * Unified request payload passed from BaseProvider to adapter implementations.
+ */
+export interface ProviderInvokeOptions {
+  prompt: string;
+  model: string;
+  generationConfig: LLMGenerationConfig;
+  signal?: AbortSignal;
 }
