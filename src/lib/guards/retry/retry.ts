@@ -1,4 +1,5 @@
 import { type RetryConfig } from "../../../shared/types/index";
+import { GuardError, GuardErrorCode } from "../../../shared/exceptions/index";
 
 // Helper function 
 const sleep = (delayMs: number) => 
@@ -37,7 +38,12 @@ export class Retry {
         // Record only when a retry succeeded, not the first attemp
         if (attempt > 0) {
           console.log(
-            `Retry succeeded on attempt ${attempt}/${this.maxRetries} (${duration}ms)`,
+            JSON.stringify({
+              event: "retry_succeeded",
+              attempt,
+              maxRetries: this.maxRetries,
+              durationMs: duration,
+            }),
           );
         }
 
@@ -47,6 +53,11 @@ export class Retry {
 
         // Last attempt
         if (attempt === this.maxRetries) {
+          throw new GuardError({
+            code: GuardErrorCode.RETRY_EXHAUSTED,
+            message: `[Retry] All ${this.maxRetries} retries exhausted: ${lastError.message}`,
+            cause: lastError,
+          });
           break;
         }
 
@@ -57,10 +68,14 @@ export class Retry {
 
         // Calculate delay: initialDelayMs * factor^attempt
         const delayMs: number = this.calculateDelay(attempt);
-
         console.warn(
-          `Attempt ${attempt} failed, retrying in ${Math.round(delayMs)}ms... ` +
-            `(${lastError.message})`,
+          JSON.stringify({
+            event: "retry_attempt_failed",
+            attempt,
+            maxRetries: this.maxRetries,
+            retryInMs: Math.round(delayMs),
+            error: lastError.message,
+          }),
         );
 
         await sleep(delayMs);
@@ -93,5 +108,4 @@ export class Retry {
     // Clamp to [0, maxDelayMs]
     return Math.min(Math.max(0, delayMs), this.maxDelayMs);
   }
-
 }
