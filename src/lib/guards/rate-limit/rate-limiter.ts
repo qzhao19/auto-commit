@@ -1,4 +1,5 @@
 import { type RateLimiterConfig, type AcquireOptions } from "../../../shared/types/index";
+import { GuardError, GuardErrorCode } from "../../../shared/exceptions/index";
 
 // A type for items in internal queue
 type WaitingResolver = {
@@ -40,14 +41,18 @@ export class RateLimiter {
    */
   public async acquire(options?: AcquireOptions): Promise<void> {
     if (this.waitingQueue.length >= this.maxQueueSize) {
-      throw new Error(
-        `[RateLimiter] Rate limiter queue is full (${this.maxQueueSize} requests)`,
-      );
+      throw new GuardError({
+        code: GuardErrorCode.RATE_LIMIT_QUEUE_FULL,
+        message: `[RateLimiter] Rate limiter queue is full (${this.maxQueueSize} requests)`,
+      });
     }
 
     const effectiveTimeoutMs = options?.timeoutMs ?? this.requestTimeout;
     if (!Number.isFinite(effectiveTimeoutMs) || effectiveTimeoutMs <= 0) {
-      throw new Error("[RateLimiter] Acquire timeout must be a finite number > 0");
+      throw new GuardError({
+        code: GuardErrorCode.RATE_LIMIT_INVALID_PARAMETER,
+        message: "[RateLimiter] Acquire timeout must be a finite number > 0",
+      });
     }
 
     return new Promise<void>((resolve, reject) => {
@@ -57,7 +62,10 @@ export class RateLimiter {
         if (index >= 0) {
           this.waitingQueue.splice(index, 1);
         }
-        reject(new Error(`[RateLimiter] Request timeout after ${effectiveTimeoutMs}ms`));
+        reject(new GuardError({
+          code: GuardErrorCode.RATE_LIMIT_TIMEOUT,
+          message: `[RateLimiter] Request timeout after ${effectiveTimeoutMs}ms`,
+        }));
       }, effectiveTimeoutMs);
 
       // Create object of waiting queue
@@ -118,7 +126,7 @@ export class RateLimiter {
 
     this.scheduledDrainId = setTimeout(() => {
       this.scheduledDrainId = null;
-      this.drain()
+      this.drain();
     }, 0);
   }
 
