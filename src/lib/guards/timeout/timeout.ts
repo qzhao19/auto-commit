@@ -1,4 +1,5 @@
 import { type TimeoutConfig, type TimeoutExecuteOptions } from "../../../shared/types/index";
+import { GuardError, GuardErrorCode } from "../../../shared/exceptions/index";
 
 export class Timeout {
   private readonly defaultTimeoutMs: number;
@@ -15,7 +16,10 @@ export class Timeout {
     const timeoutMs = options?.timeoutMs ?? this.defaultTimeoutMs;
 
     if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-      throw new Error("[Timeout] Request timed out before execution started");
+      throw new GuardError({
+        code: GuardErrorCode.REQUEST_TIMEOUT,
+        message: "[Timeout] Request timed out before execution started",
+      });
     }
     
     const controller = new AbortController();
@@ -24,7 +28,10 @@ export class Timeout {
     const timeoutPromise = new Promise<never>((_, reject) => {
       timeoutId = setTimeout(() => {
         // Construct and reject timeout error message
-        const timeoutError = new Error(`[Timeout] Request timed out after ${timeoutMs}ms`);
+        const timeoutError = new GuardError({
+          code: GuardErrorCode.REQUEST_TIMEOUT,
+          message: `[Timeout] Request timed out after ${timeoutMs}ms`,
+        });
         reject(timeoutError);
 
         // Trigger abort
