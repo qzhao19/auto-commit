@@ -1,6 +1,7 @@
 import { describe, test, expect } from "bun:test";
 import { Retry } from "../../src/lib/guards/retry/index";
 import { type RetryConfig } from "../../src/shared/types/index";
+import { GuardError, GuardErrorCode } from "../../src/shared/exceptions/index";
 
 // ── Helpers ─────────────────────────────────────────────
 
@@ -546,10 +547,12 @@ describe("Retry", () => {
 
       try {
         await retry.execute(alwaysFail("custom message"));
-        expect(true).toBe(false); // Should not reach here
-      } catch (err) {
-        expect(err).toBeInstanceOf(Error);
-        expect((err as Error).message).toBe("custom message");
+        expect(true).toBe(false);
+      } catch (error) {
+        expect(error).toBeInstanceOf(GuardError);
+        expect((error as GuardError).code).toBe(GuardErrorCode.RETRY_EXHAUSTED);
+        expect((error as GuardError).cause).toBeInstanceOf(Error);
+        expect(((error as GuardError).cause as Error).message).toBe("custom message");
       }
     });
 
@@ -561,9 +564,11 @@ describe("Retry", () => {
         await retry.execute(async () => {
           throw new Error("12345");
         });
-      } catch (err) {
-        expect(err).toBeInstanceOf(Error);
-        expect((err as Error).message).toBe("12345");
+      } catch (error) {
+        expect(error).toBeInstanceOf(GuardError);
+        expect((error as GuardError).code).toBe(GuardErrorCode.RETRY_EXHAUSTED);
+        expect((error as GuardError).cause).toBeInstanceOf(Error);
+        expect(((error as GuardError).cause as Error).message).toBe("12345");
       }
     });
 
