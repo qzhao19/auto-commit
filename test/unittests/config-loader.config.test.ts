@@ -635,15 +635,18 @@ describe("Layer 3 – CLI arguments", () => {
     await expect(loader.load()).rejects.toThrow("--max-tokens must be an integer");
   });
 
-  test("unknown CLI flags are allowed (allowUnknownOption)", async () => {
+  test("throws on unknown CLI flags when allowUnknownOption is false", async () => {
     const loader = new ConfigLoader({
       argv: ["--unknown-flag", "value", "--temperature", "0.5"],
       env: validEnv(),
       configFilePath: nonExistentPath(),
     });
-    const cfg = await loader.load();
 
-    expect(cfg.generationConfig.temperature).toBe(0.5);
+    await expect(loader.load()).rejects.toThrow("Invalid CLI arguments");
+    await expect(loader.load()).rejects.toMatchObject({
+      code: "CONFIG_CLI_ARG_INVALID",
+      source: "cli",
+    });
   });
 });
 
