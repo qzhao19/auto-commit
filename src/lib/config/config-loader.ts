@@ -289,8 +289,8 @@ export class ConfigLoader {
 
     program
       .exitOverride()
-      .allowUnknownOption(true)
-      .allowExcessArguments(true)
+      .allowUnknownOption(false)
+      .allowExcessArguments(false)
       // CLI layer is intentionally limited to LLMGenerationConfig only.
       .addOption(new Option("--temperature <n>", "Sampling temperature"))
       .addOption(new Option("--max-tokens <n>", "Max output tokens"))
@@ -325,43 +325,52 @@ export class ConfigLoader {
     const overrides: PartialRuntimeConfig = {};
     let hasLLMGenerationOverride = false;
 
-    const setFloatOverride = (
-      raw: string | undefined,
-      argName: string,
-      setter: (value: number) => void,
-    ): void => {
-      if (raw === undefined) return;
-      const value = assertIsFloat(raw, argName);
-      setter(value);
-      hasLLMGenerationOverride = true;
-    };
+    try {
+      const setFloatOverride = (
+        raw: string | undefined,
+        argName: string,
+        setter: (value: number) => void,
+      ): void => {
+        if (raw === undefined) return;
+        const value = assertIsFloat(raw, argName);
+        setter(value);
+        hasLLMGenerationOverride = true;
+      };
 
-    const setIntOverride = (
-      raw: string | undefined,
-      argName: string,
-      setter: (value: number) => void,
-    ): void => {
-      if (raw === undefined) return;
-      const value = assertIsInt(raw, argName);
-      setter(value);
-      hasLLMGenerationOverride = true;
-    };
+      const setIntOverride = (
+        raw: string | undefined,
+        argName: string,
+        setter: (value: number) => void,
+      ): void => {
+        if (raw === undefined) return;
+        const value = assertIsInt(raw, argName);
+        setter(value);
+        hasLLMGenerationOverride = true;
+      };
 
-    setFloatOverride(opts.temperature, "--temperature", (value) => {
-      ensureLLMConfig(overrides).temperature = value;
-    });
-    setIntOverride(opts.maxTokens, "--max-tokens", (value) => {
-      ensureLLMConfig(overrides).maxTokens = value;
-    });
-    setFloatOverride(opts.topP, "--top-p", (value) => {
-      ensureLLMConfig(overrides).topP = value;
-    });
-    setFloatOverride(opts.frequencyPenalty, "--frequency-penalty", (value) => {
-      ensureLLMConfig(overrides).frequencyPenalty = value;
-    });
-    setFloatOverride(opts.presencePenalty, "--presence-penalty", (value) => {
-      ensureLLMConfig(overrides).presencePenalty = value;
-    });
+      setFloatOverride(opts.temperature, "--temperature", (value) => {
+        ensureLLMConfig(overrides).temperature = value;
+      });
+      setIntOverride(opts.maxTokens, "--max-tokens", (value) => {
+        ensureLLMConfig(overrides).maxTokens = value;
+      });
+      setFloatOverride(opts.topP, "--top-p", (value) => {
+        ensureLLMConfig(overrides).topP = value;
+      });
+      setFloatOverride(opts.frequencyPenalty, "--frequency-penalty", (value) => {
+        ensureLLMConfig(overrides).frequencyPenalty = value;
+      });
+      setFloatOverride(opts.presencePenalty, "--presence-penalty", (value) => {
+        ensureLLMConfig(overrides).presencePenalty = value;
+      });
+    } catch (error) {
+      throw new ConfigError({
+        code: ConfigErrorCode.CLI_ARG_INVALID,
+        source: "cli",
+        message: "Invalid CLI arguments: " + this.errorMsg(error),
+        cause: error,
+      });
+    }
 
     if (!hasLLMGenerationOverride) return {};
     return overrides;
