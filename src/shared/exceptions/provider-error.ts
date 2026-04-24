@@ -45,17 +45,24 @@ export class ProviderError extends Error {
       return error;
     }
 
-    // Mapping to GuardError
     if (error instanceof GuardError) {
       switch (error.code) {
-        case GuardErrorCode.RETRY_EXHAUSTED:
-          // When the retry ultimately fails, if the underlying error is a `ProviderError`, 
-          // it indicates that the error itself is the root cause of the problem.
-          if (error.cause instanceof ProviderError) {
-            return error.cause;
+        case GuardErrorCode.RETRY_EXHAUSTED: {
+          const rootCause = error.cause;
+          if (rootCause instanceof ProviderError || rootCause instanceof GuardError) {
+            return ProviderError.fromUnknown(rootCause, fallback);
           }
           return new ProviderError({
             code: ProviderErrorCode.RETRY_EXHAUSTED,
+            provider: fallback.provider,
+            message: error.message,
+            details: fallback.details,
+            cause: error,
+          });
+        }
+        case GuardErrorCode.RATE_LIMIT_INVALID_PARAMETER:
+          return new ProviderError({
+            code: ProviderErrorCode.CONFIG_INVALID,
             provider: fallback.provider,
             message: error.message,
             details: fallback.details,
