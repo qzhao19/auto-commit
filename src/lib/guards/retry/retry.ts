@@ -58,7 +58,6 @@ export class Retry {
             message: `[Retry] All ${this.maxRetries} retries exhausted: ${lastError.message}`,
             cause: lastError,
           });
-          break;
         }
 
         // Check if error is retryable
