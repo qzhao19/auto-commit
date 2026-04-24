@@ -4,6 +4,8 @@ import {
   type InternalRuntimeConfig,
   type ResolvedProviderConfig,
 } from "../../../shared/types/index";
+import { ConfigError, ConfigErrorCode } from "../../../shared/exceptions/index";
+import { DEFAULT_SUPPORTED_PROVIDERS } from "../../../shared/constants/index";
 
 type DeepPartial<T> = {
   [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K];
@@ -92,86 +94,99 @@ export function ensureRateLimiterConfig(
   return requestGuards.rateLimiter;
 }
 
+function validationError(message: string): ConfigError {
+  return new ConfigError({
+    code: ConfigErrorCode.VALIDATION_FAILED,
+    source: "validation",
+    message,
+  });
+}
+
 export function validateConfig(config: RuntimeConfig): void {
   const { llm, requestGuards } = config;
 
   if (!llm.provider || llm.provider.trim() === "") {
-    throw new Error(
+    throw validationError(
       "llm.provider is required. Set llm.provider in [autocommit.toml] or export AUTOCOMMIT_PROVIDER.",
     );
   }
+
+  const provider = llm.provider.trim().toLowerCase();
+  if (!DEFAULT_SUPPORTED_PROVIDERS.includes(provider)) {
+    throw validationError(
+      `llm.provider must be one of: ${DEFAULT_SUPPORTED_PROVIDERS.join(", ")}, got "${llm.provider}".`,
+    );
+  }
+
   if (!llm.model || llm.model.trim() === "") {
-    throw new Error(
+    throw validationError(
       "llm.model is required. Set llm.model in [autocommit.toml] or export AUTOCOMMIT_MODEL.",
     );
   }
 
   if (llm.frequencyPenalty !== undefined && !Number.isFinite(llm.frequencyPenalty)) {
-    throw new Error("frequencyPenalty must be a finite number");
+    throw validationError("frequencyPenalty must be a finite number");
   }
   if (llm.presencePenalty !== undefined && !Number.isFinite(llm.presencePenalty)) {
-    throw new Error("presencePenalty must be a finite number");
+    throw validationError("presencePenalty must be a finite number");
   }
 
-  // For remote providers, apiKey is required
-  // Ollama/local providers may not need an API key
-  const provider = llm.provider.toLowerCase();
-  const requiresApiKey = provider !== "ollama" && provider !== "local";
-  if (requiresApiKey && (!llm.apiKey || llm.apiKey.trim() === "")) {
-    throw new Error(
-      `llm.apiKey is required for provider "${llm.provider}". ` +
-      "Set env AUTOCOMMIT_API_KEY.",
-    );
+  const apiKey = llm.apiKey?.trim();
+
+  // openai/deepseek require real apiKey
+  if (provider !== "ollama") {
+    if (!apiKey) {
+      throw validationError(
+        `llm.apiKey is required for provider "${llm.provider}". Set env AUTOCOMMIT_API_KEY.`,
+      );
+    }
+    if (apiKey.toLowerCase() === "ollama") {
+      throw validationError(
+        `llm.apiKey for provider "${llm.provider}" cannot be "ollama".`,
+      );
+    }
   }
 
-  // const p = llm.modelParams;
   if (llm.temperature !== undefined && (llm.temperature < 0 || llm.temperature > 2)) {
-    throw new Error("temperature must be between 0 and 2");
+    throw validationError("temperature must be between 0 and 2");
   }
   if (llm.topP !== undefined && (llm.topP < 0 || llm.topP > 1)) {
-    throw new Error("topP must be between 0 and 1");
+    throw validationError("topP must be between 0 and 1");
   }
   if (llm.maxTokens !== undefined && llm.maxTokens <= 0) {
-    throw new Error("maxTokens must be > 0");
+    throw validationError("maxTokens must be > 0");
   }
 
-  // requestGuards
   if (requestGuards.retry.maxRetries < 0) {
-    throw new Error("retry.maxRetries must be >= 0");
+    throw validationError("retry.maxRetries must be >= 0");
   }
   if (requestGuards.retry.initialDelayMs < 0) {
-    throw new Error("retry.initialDelayMs must be >= 0");
+    throw validationError("retry.initialDelayMs must be >= 0");
   }
   if (requestGuards.retry.maxDelayMs < 0) {
-    throw new Error("retry.maxDelayMs must be >= 0");
+    throw validationError("retry.maxDelayMs must be >= 0");
   }
   if (requestGuards.retry.factor <= 0) {
-    throw new Error("retry.factor must be > 0");
+    throw validationError("retry.factor must be > 0");
   }
   if (requestGuards.timeout.timeoutMs <= 0) {
-    throw new Error("timeout.timeoutMs must be > 0");
+    throw validationError("timeout.timeoutMs must be > 0");
   }
   if (requestGuards.rateLimiter.maxRequestsPerMinute <= 0) {
-    throw new Error("rateLimiter.maxRequestsPerMinute must be > 0");
+    throw validationError("rateLimiter.maxRequestsPerMinute must be > 0");
   }
   if (requestGuards.rateLimiter.maxQueueSize <= 0) {
-    throw new Error("rateLimiter.maxQueueSize must be > 0");
+    throw validationError("rateLimiter.maxQueueSize must be > 0");
   }
   if (requestGuards.rateLimiter.requestTimeout <= 0) {
-    throw new Error("rateLimiter.requestTimeout must be > 0");
+    throw validationError("rateLimiter.requestTimeout must be > 0");
   }
 }
 
 
 export function toProviderConfig(config: InternalRuntimeConfig): ResolvedProviderConfig {
-  const provider = config.llm.provider;
-  const model = config.llm.model;
-
-  if (!provider || !model) {
-    throw new Error(
-      "Internal invariant violated: provider/model must be resolved before mapping to ProviderConfig."
-    );
-  }
+  const provider = config.llm.provider!;
+  const model = config.llm.model!;
 
   return {
     provider,
