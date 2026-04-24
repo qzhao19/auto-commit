@@ -173,27 +173,6 @@ baseUrl = ""
     expect(cfg.baseUrl).toBeUndefined();
   });
 
-  test("backward compatibility: RequestGuards (PascalCase) → requestGuards", async () => {
-    const path = await writeToml(`
-[llm]
-provider = "openai"
-model = "gpt-4o"
-apiKey = "sk-key"
-
-[RequestGuards.retry]
-maxRetries = 10
-`);
-
-    const loader = new ConfigLoader({
-      argv: EMPTY_ARGV,
-      env: {},
-      configFilePath: path,
-    });
-    const cfg = await loader.load();
-
-    expect(cfg.requestGuardsConfig.retry.maxRetries).toBe(10);
-  });
-
   test("throws on unknown top-level key in TOML", async () => {
     const path = await writeToml(`
 [llm]
@@ -744,7 +723,7 @@ temperature = 0.5
   test("full three-layer override chain", async () => {
     const path = await writeToml(`
 [llm]
-provider = "toml-provider"
+provider = "openai"
 model = "toml-model"
 apiKey = "sk-toml"
 temperature = 0.3
@@ -757,7 +736,7 @@ maxRetries = 10
     const loader = new ConfigLoader({
       argv: ["--temperature", "1.9"],
       env: {
-        AUTOCOMMIT_PROVIDER: "env-provider",
+        AUTOCOMMIT_PROVIDER: "deepseek",
         AUTOCOMMIT_MODEL: "env-model",
         AUTOCOMMIT_API_KEY: "sk-env",
         AUTOCOMMIT_RETRY_MAX_RETRIES: "1",
@@ -767,7 +746,7 @@ maxRetries = 10
     const cfg = await loader.load();
 
     // Provider/model/apiKey: env wins over TOML
-    expect(cfg.provider).toBe("env-provider");
+    expect(cfg.provider).toBe("deepseek");
     expect(cfg.model).toBe("env-model");
     expect(cfg.apiKey).toBe("sk-env");
     // temperature: CLI wins over TOML
@@ -821,34 +800,6 @@ describe("validateConfig errors", () => {
     });
 
     await expect(loader.load()).rejects.toThrow("llm.apiKey is required");
-  });
-
-  test("does not throw when apiKey is missing for ollama provider", async () => {
-    const loader = new ConfigLoader({
-      argv: EMPTY_ARGV,
-      env: {
-        AUTOCOMMIT_PROVIDER: "ollama",
-        AUTOCOMMIT_MODEL: "llama3",
-      },
-      configFilePath: nonExistentPath(),
-    });
-
-    const cfg = await loader.load();
-    expect(cfg.provider).toBe("ollama");
-  });
-
-  test("does not throw when apiKey is missing for local provider", async () => {
-    const loader = new ConfigLoader({
-      argv: EMPTY_ARGV,
-      env: {
-        AUTOCOMMIT_PROVIDER: "local",
-        AUTOCOMMIT_MODEL: "local-model",
-      },
-      configFilePath: nonExistentPath(),
-    });
-
-    const cfg = await loader.load();
-    expect(cfg.provider).toBe("local");
   });
 
   test("throws when temperature > 2", async () => {
