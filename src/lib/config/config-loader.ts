@@ -8,6 +8,7 @@ import {
   type ResolvedProviderConfig,
 } from "../../shared/types/index";
 import { DEFAULT_LLM_CONFIG, DEFAULT_REQUEST_GUARDS_CONFIG } from "../../shared/constants/index";
+import { ConfigError, ConfigErrorCode } from "../../shared/exceptions/index";
 import {
   assertOnlyKnownKeys,
   assertIsBool,
@@ -98,29 +99,38 @@ export class ConfigLoader {
     try {
       content = await file.text();
     } catch (error) {
-      throw new Error(
-        `Failed to read config file ${this.configFilePath}: ${this.errorMsg(error)}`,
-        { cause: error }
-      );
+      throw new ConfigError({
+        code: ConfigErrorCode.FILE_READ_FAILED,
+        source: "file",
+        message: `Failed to read config file ${this.configFilePath}: ${this.errorMsg(error)}`,
+        key: this.configFilePath,
+        cause: error,
+      });
     }
 
     let parsedContent: object;
     try {
       parsedContent = Bun.TOML.parse(content);
     } catch (error) {
-      throw new Error(
-        `Failed to parse config file ${this.configFilePath}: ${this.errorMsg(error)}`,
-        { cause: error }
-      );
+      throw new ConfigError({
+        code: ConfigErrorCode.FILE_PARSE_FAILED,
+        source: "file",
+        message: `Failed to parse config file ${this.configFilePath}: ${this.errorMsg(error)}`,
+        key: this.configFilePath,
+        cause: error,
+      });
     }
 
     try {
       return this.normalizeTomlConfig(parsedContent);
     } catch (error) {
-      throw new Error(
-        "Invalid config in " + this.configFilePath + ": " + this.errorMsg(error),
-        { cause: error },
-      );
+      throw new ConfigError({
+        code: ConfigErrorCode.FILE_SCHEMA_INVALID,
+        source: "file",
+        message: "Invalid config in " + this.configFilePath + ": " + this.errorMsg(error),
+        key: this.configFilePath,
+        cause: error,
+      });
     }
   }
 
@@ -139,7 +149,7 @@ export class ConfigLoader {
       key: "AUTOCOMMIT_PROVIDER",
       apply: (overrides, value) => {
         const llm = ensureLLMConfig(overrides);
-        llm.provider = value.trim();
+        llm.provider = value.trim().toLowerCase();
       },
     },
     {
@@ -259,10 +269,13 @@ export class ConfigLoader {
       try {
         entry.apply(overrides, value);
       } catch (error) {
-        throw new Error(
-          `Invalid env var ${entry.key}="${value}": ${this.errorMsg(error)}`,
-          { cause: error },
-        );
+        throw new ConfigError({
+          code: ConfigErrorCode.ENV_VAR_INVALID,
+          source: "env",
+          message: `Invalid env var ${entry.key}="${value}": ${this.errorMsg(error)}`,
+          key: entry.key,
+          cause: error,
+        });
       }
     }
 
@@ -293,10 +306,12 @@ export class ConfigLoader {
     try {
       program.parse(argvForCommander, { from: "user" });
     } catch (error) {
-      throw new Error(
-        "Invalid CLI arguments: " + this.errorMsg(error),
-        { cause: error },
-      );
+      throw new ConfigError({
+        code: ConfigErrorCode.CLI_ARG_INVALID,
+        source: "cli",
+        message: "Invalid CLI arguments: " + this.errorMsg(error),
+        cause: error,
+      });
     }
 
     const opts = program.opts<{
@@ -368,15 +383,6 @@ export class ConfigLoader {
     const root = assertIsObject(rawToml, "root");
     const normalizedRoot: Record<string, unknown> = { ...root };
 
-    // backward compatibility: old template used RequestGuards
-    if (
-      normalizedRoot.requestGuards === undefined &&
-      normalizedRoot.RequestGuards !== undefined
-    ) {
-      normalizedRoot.requestGuards = normalizedRoot.RequestGuards;
-    }
-    delete normalizedRoot.RequestGuards;
-
     assertOnlyKnownKeys(
       normalizedRoot,
       ["llm", "requestGuards"],
@@ -411,12 +417,11 @@ export class ConfigLoader {
       return str !== "" ? str : undefined;
     };
 
-
     const out: NonNullable<PartialRuntimeConfig["llm"]> = {};
 
     if (llm.provider !== undefined) {
       const value = normalizeOptionalString(llm.provider, "llm.provider");
-      if (value !== undefined) out.provider = value;
+      if (value !== undefined) out.provider = value.toLowerCase();
     }
     if (llm.model !== undefined) {
       const value = normalizeOptionalString(llm.model, "llm.model");
@@ -428,7 +433,8 @@ export class ConfigLoader {
         "This is a security risk as sensitive credentials may be accidentally committed to version control or exposed in logs. " +
         "Consider using the environment variable 'AUTOCOMMIT_API_KEY' instead for better security."
       );
-      out.apiKey = assertIsString(llm.apiKey, "llm.apiKey").trim();
+      const value = normalizeOptionalString(llm.apiKey, "llm.apiKey");
+      if (value !== undefined) out.apiKey = value;
     }
     if (llm.baseUrl !== undefined) {
       const value = normalizeOptionalString(llm.baseUrl, "llm.baseUrl");
