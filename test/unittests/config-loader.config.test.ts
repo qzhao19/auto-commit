@@ -642,8 +642,10 @@ describe("Layer 3 – CLI arguments", () => {
       configFilePath: nonExistentPath(),
     });
 
-    await expect(loader.load()).rejects.toThrow("Invalid CLI arguments");
-    await expect(loader.load()).rejects.toMatchObject({
+    const loadPromise = loader.load();
+
+    await expect(loadPromise).rejects.toThrow("Invalid CLI arguments");
+    await expect(loadPromise).rejects.toMatchObject({
       code: "CONFIG_CLI_ARG_INVALID",
       source: "cli",
     });
