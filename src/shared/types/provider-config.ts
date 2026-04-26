@@ -20,6 +20,7 @@ interface ProviderConfig {
 export interface ResolvedProviderConfig extends Omit<ProviderConfig, "requestGuardsConfig" | "generationConfig"> {
   generationConfig: LLMGenerationConfig;
   requestGuardsConfig: InternalRequestGuardsConfig;
+  verbose: boolean;
 }
 
 /**
