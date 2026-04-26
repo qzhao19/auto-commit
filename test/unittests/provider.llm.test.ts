@@ -43,6 +43,7 @@ function makeConfig(
         requestTimeout: 5000,
       },
     },
+    verbose: false,
     ...overrides,
   };
 }

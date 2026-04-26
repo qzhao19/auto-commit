@@ -1124,3 +1124,25 @@ describe("retryableErrors injection", () => {
     );
   });
 });
+
+test("--verbose flag sets verbose to true", async () => {
+  const loader = new ConfigLoader({
+    argv: ["--verbose"],
+    env: validEnv(),
+    configFilePath: nonExistentPath(),
+  });
+  const cfg = await loader.load();
+
+  expect(cfg.verbose).toBe(true);
+});
+
+test("no --verbose flag defaults verbose to false", async () => {
+  const loader = new ConfigLoader({
+    argv: EMPTY_ARGV,
+    env: validEnv(),
+    configFilePath: nonExistentPath(),
+  });
+  const cfg = await loader.load();
+
+  expect(cfg.verbose).toBe(false);
+});
