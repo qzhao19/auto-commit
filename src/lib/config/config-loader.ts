@@ -55,8 +55,8 @@ export class ConfigLoader {
     // requestGuards + LLMProviderConfig overrides (provider/model/baseUrl/apiKey) 
     const envPartialConfig: PartialRuntimeConfig = this.loadEnvGuardOverrides();
 
-    // Load CLI arguments : LLM configs only
-    const cliPartialConfig: PartialRuntimeConfig = this.loadCliLLMOverrides();
+    // Load CLI arguments: LLMGenerationConfig params + verbose flag
+    const cliPartialConfig: PartialRuntimeConfig = this.loadCliOverrides();
 
     // Merge all configs
     const runtimeConfig: RuntimeConfig = this.mergeConfigs(
@@ -84,6 +84,7 @@ export class ConfigLoader {
     return {
       llm: DEFAULT_LLM_CONFIG,
       requestGuards: DEFAULT_REQUEST_GUARDS_CONFIG,
+      verbose: false,
     };
   }
 
@@ -282,21 +283,26 @@ export class ConfigLoader {
     return overrides;
   }
 
-  // ── Layer 3: CLI Arguments (LLM only) ──
-
-  private loadCliLLMOverrides(): PartialRuntimeConfig {
+  // ── Layer 3: CLI Arguments ──
+  // Handles LLMGenerationConfig overrides (--temperature, --max-tokens, etc.)
+  // and the --verbose flag.
+  // verbose is intentionally CLI-only: cannot be set via TOML or ENV.
+  
+  private loadCliOverrides(): PartialRuntimeConfig {
     const program = new Command();
 
     program
       .exitOverride()
       .allowUnknownOption(false)
       .allowExcessArguments(false)
-      // CLI layer is intentionally limited to LLMGenerationConfig only.
-      .addOption(new Option("--temperature <n>", "Sampling temperature"))
+      // ── LLMGenerationConfig params ──
+      .addOption(new Option("--temperature <n>", "Sampling temperature (0-2)"))
       .addOption(new Option("--max-tokens <n>", "Max output tokens"))
-      .addOption(new Option("--top-p <n>", "Nucleus sampling"))
+      .addOption(new Option("--top-p <n>", "Nucleus sampling probability (0-1)"))
       .addOption(new Option("--frequency-penalty <n>", "Frequency penalty"))
-      .addOption(new Option("--presence-penalty <n>", "Presence penalty"));
+      .addOption(new Option("--presence-penalty <n>", "Presence penalty"))
+      // ── General flags ──
+      .addOption(new Option("--verbose", "Print detailed logs during execution"));
 
     const argvForCommander =
       this.argv.length > 0 && this.argv[0]!.startsWith("--")
@@ -320,49 +326,29 @@ export class ConfigLoader {
       topP?: string;
       frequencyPenalty?: string;
       presencePenalty?: string;
+      verbose?: boolean;
     }>();
 
     const overrides: PartialRuntimeConfig = {};
-    let hasLLMGenerationOverride = false;
 
+    // ── Numeric LLM generation params ──
+    // assertIsFloat/assertIsInt may throw; wrap into ConfigError.
     try {
-      const setFloatOverride = (
-        raw: string | undefined,
-        argName: string,
-        setter: (value: number) => void,
-      ): void => {
-        if (raw === undefined) return;
-        const value = assertIsFloat(raw, argName);
-        setter(value);
-        hasLLMGenerationOverride = true;
-      };
-
-      const setIntOverride = (
-        raw: string | undefined,
-        argName: string,
-        setter: (value: number) => void,
-      ): void => {
-        if (raw === undefined) return;
-        const value = assertIsInt(raw, argName);
-        setter(value);
-        hasLLMGenerationOverride = true;
-      };
-
-      setFloatOverride(opts.temperature, "--temperature", (value) => {
-        ensureLLMConfig(overrides).temperature = value;
-      });
-      setIntOverride(opts.maxTokens, "--max-tokens", (value) => {
-        ensureLLMConfig(overrides).maxTokens = value;
-      });
-      setFloatOverride(opts.topP, "--top-p", (value) => {
-        ensureLLMConfig(overrides).topP = value;
-      });
-      setFloatOverride(opts.frequencyPenalty, "--frequency-penalty", (value) => {
-        ensureLLMConfig(overrides).frequencyPenalty = value;
-      });
-      setFloatOverride(opts.presencePenalty, "--presence-penalty", (value) => {
-        ensureLLMConfig(overrides).presencePenalty = value;
-      });
+      if (opts.temperature !== undefined) {
+        ensureLLMConfig(overrides).temperature = assertIsFloat(opts.temperature, "--temperature");
+      }
+      if (opts.maxTokens !== undefined) {
+        ensureLLMConfig(overrides).maxTokens = assertIsInt(opts.maxTokens, "--max-tokens");
+      }
+      if (opts.topP !== undefined) {
+        ensureLLMConfig(overrides).topP = assertIsFloat(opts.topP, "--top-p");
+      }
+      if (opts.frequencyPenalty !== undefined) {
+        ensureLLMConfig(overrides).frequencyPenalty = assertIsFloat(opts.frequencyPenalty, "--frequency-penalty");
+      }
+      if (opts.presencePenalty !== undefined) {
+        ensureLLMConfig(overrides).presencePenalty = assertIsFloat(opts.presencePenalty, "--presence-penalty");
+      }
     } catch (error) {
       throw new ConfigError({
         code: ConfigErrorCode.CLI_ARG_INVALID,
@@ -372,7 +358,13 @@ export class ConfigLoader {
       });
     }
 
-    if (!hasLLMGenerationOverride) return {};
+    // ── Boolean flags ──
+    // verbose is a presence flag: --verbose → true, absent → key absent from overrides.
+    // Default false is guaranteed by createDefaultConfig(); no parsing needed here.
+    if (opts.verbose === true) {
+      overrides.verbose = true;
+    }
+
     return overrides;
   }
 
