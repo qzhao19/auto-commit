@@ -87,16 +87,18 @@ export abstract class BaseProvider {
       const rateWaitStartedAt: number = Date.now();
       await this.waitForRateLimit(signal);
       const rateWaitMs = Date.now() - rateWaitStartedAt;
-      // Print formatted info msg
-      console.info(
-        "[provider] " +
-          JSON.stringify({
-            event: "rate_limit_acquired",
-            provider,
-            attempt: attempts,
-            waitMs: rateWaitMs,
-          }),
-      );
+
+      if (this.config.verbose) {
+        console.info(
+          "[provider] " +
+            JSON.stringify({
+              event: "rate_limit_acquired",
+              provider,
+              attempt: attempts,
+              waitMs: rateWaitMs,
+            }),
+        );
+      }
 
       return this.timeout.execute(
         (timeoutSignal) => {
@@ -116,15 +118,17 @@ export abstract class BaseProvider {
     try {
       const result = await this.retry.execute(executeOnce);
 
-      console.info(
-        "[provider] " +
-          JSON.stringify({
-            event: "invoke_success",
-            provider,
-            attempts,
-            durationMs: Date.now() - startedAt,
-          }),
-      );
+      if (this.config.verbose) {
+        console.info(
+          "[provider] " +
+            JSON.stringify({
+              event: "invoke_success",
+              provider,
+              attempts,
+              durationMs: Date.now() - startedAt,
+            }),
+        );
+      }
 
       return result;
     } catch (error) {
