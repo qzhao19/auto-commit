@@ -193,6 +193,7 @@ export function toProviderConfig(config: InternalRuntimeConfig): ResolvedProvide
     model,
     apiKey: config.llm.apiKey,
     baseUrl: config.llm.baseUrl,
+    verbose: config.verbose,
     generationConfig: {
       temperature: config.llm.temperature,
       maxTokens: config.llm.maxTokens,
