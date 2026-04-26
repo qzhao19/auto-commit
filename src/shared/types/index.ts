@@ -1,4 +1,4 @@
 export * from "./config-loader";
 export * from "./request-guards";
 export * from "./model-settings";
-export * from "./app-config";
+export * from "./provider-config";
