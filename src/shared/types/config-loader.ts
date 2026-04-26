@@ -12,6 +12,7 @@ import {
 export interface RuntimeConfig {
   llm: LLMConfig;
   requestGuards: RequestGuardsConfig;
+  verbose: boolean;
 }
 
 /**
@@ -22,6 +23,7 @@ export interface RuntimeConfig {
 export type PartialRuntimeConfig = {
   llm?: PartialLLMConfig;
   requestGuards?: PartialRequestGuardsConfig;
+  verbose?: boolean;
 };
 
 /**
