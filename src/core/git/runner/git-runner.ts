@@ -1,7 +1,6 @@
 import { GitCode, GitError } from "../../../shared/exceptions/index";
 import { type GitRunOptions, type GitRunResult } from "../../../shared/types";
 
-
 // Injected into every git invocation to prevent interactive prompts
 // from blocking a non-TTY CLI process.
 const NON_INTERACTIVE_ENV: Record<string, string> = {
@@ -17,6 +16,37 @@ export class GitRunner {
   }
 
   /**
+   * High-level execution:
+   * - Accepts only exit code 0 by default.
+   * - Pass allowedExitCodes for commands with semantic non-zero exits
+   *   (e.g. `git diff --cached --quiet` returns 1 when staging is non-empty).
+   */
+  public async run(args: string[], options?: GitRunOptions): Promise<GitRunResult> {
+    const allowedExitCodes = options?.allowedExitCodes ?? [0];
+    const result = await this.runRaw(args, options);
+
+    if (!allowedExitCodes.includes(result.exitCode)) {
+      const reason = result.stderr || result.stdout || "unknown git error";
+      throw new GitError({
+        code: GitCode.COMMAND_FAILED,
+        message:
+          `Git command failed with exit code ${result.exitCode}: ${result.command}\n${reason}`,
+        details: {
+          args: result.args,
+          cwd: result.cwd,
+          command: result.command,
+          exitCode: result.exitCode,
+          stdout: result.stdout,
+          stderr: result.stderr,
+          allowedExitCodes: [...allowedExitCodes],
+        },
+      });
+    }
+
+    return result;
+  }
+
+  /**
    * Low-level execution:
    * - Runs git and always returns exit code/output.
    * - Throws GitError(COMMAND_FAILED) only when spawn itself fails.
@@ -24,7 +54,6 @@ export class GitRunner {
   private async runRaw(args: string[], options?: GitRunOptions): Promise<GitRunResult> {
     const cwd = options?.cwd ?? this.defaultCwd;
     const commandArgs = ["git", ...args];
-    const startedAt = Date.now();
 
     let proc: ReturnType<typeof Bun.spawn>;
     try {
@@ -75,39 +104,7 @@ export class GitRunner {
       exitCode,
       stdout: stdout.trim(),
       stderr: stderr.trim(),
-      durationMs: Date.now() - startedAt,
     };
-  }
-
-  /**
-   * High-level execution:
-   * - Accepts only exit code 0 by default.
-   * - Pass allowedExitCodes for commands with semantic non-zero exits
-   *   (e.g. `git diff --cached --quiet` returns 1 when staging is non-empty).
-   */
-  public async run(args: string[], options?: GitRunOptions): Promise<GitRunResult> {
-    const allowedExitCodes = options?.allowedExitCodes ?? [0];
-    const result = await this.runRaw(args, options);
-
-    if (!allowedExitCodes.includes(result.exitCode)) {
-      const reason = result.stderr || result.stdout || "unknown git error";
-      throw new GitError({
-        code: GitCode.COMMAND_FAILED,
-        message:
-          `Git command failed with exit code ${result.exitCode}: ${result.command}\n${reason}`,
-        details: {
-          args: result.args,
-          cwd: result.cwd,
-          command: result.command,
-          exitCode: result.exitCode,
-          stdout: result.stdout,
-          stderr: result.stderr,
-          allowedExitCodes: [...allowedExitCodes],
-        },
-      });
-    }
-
-    return result;
   }
 
   private async readText(
