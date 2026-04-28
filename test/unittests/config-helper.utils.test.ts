@@ -37,6 +37,7 @@ function createBaseConfig(): RuntimeConfig {
         requestTimeout: 30_000,
       },
     },
+    verbose: false,
   };
 }
 
