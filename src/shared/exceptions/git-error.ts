@@ -5,6 +5,8 @@ export const GitCode = {
   BISECT_IN_PROGRESS: "GIT_BISECT_IN_PROGRESS",
   COMMAND_FAILED:     "GIT_COMMAND_FAILED",
   COMMIT_FAILED:      "GIT_COMMIT_FAILED",
+  BARE_REPO_UNSUPPORTED: "GIT_BARE_REPO_UNSUPPORTED",
+  NOTHING_TO_COMMIT:  "GIT_NOTHING_TO_COMMIT",
 } as const;
 
 export type GitErrorCode = (typeof GitCode)[keyof typeof GitCode];
