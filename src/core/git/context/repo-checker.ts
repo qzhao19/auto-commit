@@ -71,6 +71,20 @@ export class RepoChecker {
         context,
       };
     } catch (error) {
+      const stepDetails = {
+        step: currentStep,
+        completedSteps: [...completedSteps],
+      };
+
+      if (error instanceof GitError) {
+        throw new GitError({
+          code: error.code,
+          message: error.message,
+          details: { ...(error.details ?? {}), ...stepDetails },
+          cause: error.cause, // cause
+        });
+      }
+      // For unexpected runtime errors
       throw new GitError({
         code: GitCode.COMMAND_FAILED,
         message: error instanceof Error ? error.message : String(error),
