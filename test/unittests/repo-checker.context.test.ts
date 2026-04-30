@@ -48,7 +48,7 @@ function mockBunFileExists(exists: boolean) {
 
 /**
  * Standard runner responses for a successful run.
- * resolveWorkTree now makes 2 run() calls: --is-bare-repository then --show-toplevel.
+ * resolveWorkTree makes 2 run() calls: --is-bare-repository then --show-toplevel.
  */
 function happyResponses(): GitRunResult[] {
   return [
@@ -182,7 +182,7 @@ describe("RepoChecker", () => {
     test("returns an absolute gitDir unchanged when --git-dir output starts with '/'", async () => {
       mockBunFileExists(false);
       const checker = new RepoChecker(makeRunner(
-        r({ stdout: "/absolute/.git" }),    // already absolute
+        r({ stdout: "/absolute/.git" }),
         r({ exitCode: 1 }),
         r({ stdout: "false" }),   // resolveWorkTree → --is-bare-repository
         r({ stdout: WORKTREE }),
@@ -210,8 +210,8 @@ describe("RepoChecker", () => {
 
       expect(caught).toBeInstanceOf(GitError);
       const e = caught as GitError;
-      // All errors are uniformly wrapped with COMMAND_FAILED; original is accessible via cause
-      expect(e.code).toBe(GitCode.COMMAND_FAILED);
+      // GitError: original code is preserved
+      expect(e.code).toBe(GitCode.NOT_A_REPO);
       expect(e.details?.step).toBe("is-repo");
       expect(e.details?.completedSteps).toEqual([]);
     });
@@ -227,7 +227,8 @@ describe("RepoChecker", () => {
 
       expect(caught).toBeInstanceOf(GitError);
       const e = caught as GitError;
-      expect(e.code).toBe(GitCode.COMMAND_FAILED);
+      // GitError: original code is preserved
+      expect(e.code).toBe(GitCode.LOCK_FILE_EXISTS);
       expect(e.details?.step).toBe("lock-check");
       expect(e.details?.completedSteps).toEqual(["is-repo"]);
     });
@@ -245,12 +246,13 @@ describe("RepoChecker", () => {
 
       expect(caught).toBeInstanceOf(GitError);
       const e = caught as GitError;
-      expect(e.code).toBe(GitCode.COMMAND_FAILED);
+      // GitError: original NOTHING_TO_COMMIT code is preserved
+      expect(e.code).toBe(GitCode.NOTHING_TO_COMMIT);
       expect(e.details?.step).toBe("staging-check");
       expect(e.details?.completedSteps).toEqual(["is-repo", "lock-check"]);
     });
 
-    test("step 3 failure (staging-check / unstaged): details includes unstagedFiles from cause", async () => {
+    test("step 3 failure (staging-check / unstaged): details includes unstagedFiles", async () => {
       mockBunFileExists(false);
       const checker = new RepoChecker(makeRunner(
         r({ stdout: GIT_DIR }),
@@ -263,9 +265,9 @@ describe("RepoChecker", () => {
       try { await checker.check(); } catch (e) { caught = e; }
 
       const e = caught as GitError;
+      // original details are merged into e.details along with step context
       expect(e.details?.step).toBe("staging-check");
-      // unstagedFiles are preserved in the original error accessible via cause
-      expect((e.cause as GitError).details?.unstagedFiles).toEqual(["src/a.ts", "src/b.ts"]);
+      expect(e.details?.unstagedFiles).toEqual(["src/a.ts", "src/b.ts"]);
     });
 
     test("step 4 failure (resolve-worktree): completedSteps contains first 3 steps", async () => {
@@ -328,7 +330,7 @@ describe("RepoChecker", () => {
       ]);
     });
 
-    test("re-thrown error uses COMMAND_FAILED code but preserves the original message", async () => {
+    test("re-thrown GitError preserves the original code and message", async () => {
       mockBunFileExists(false);
       const original = new GitError({
         code: GitCode.NOT_A_REPO,
@@ -340,22 +342,28 @@ describe("RepoChecker", () => {
       try { await checker.check(); } catch (e) { caught = e; }
 
       const e = caught as GitError;
-      expect(e.code).toBe(GitCode.COMMAND_FAILED);
+      expect(e.code).toBe(GitCode.NOT_A_REPO);
       expect(e.message).toBe("Exact original message");
     });
 
-    test("re-thrown error has the original error as cause", async () => {
+    test("re-thrown GitError propagates the underlying cause, not the GitError itself", async () => {
       mockBunFileExists(false);
-      const original = new GitError({ code: GitCode.NOT_A_REPO, message: "not a repo" });
+      const rootCause = new Error("underlying spawn error");
+      const original = new GitError({
+        code: GitCode.NOT_A_REPO,
+        message: "not a repo",
+        cause: rootCause,
+      });
       const checker = new RepoChecker(makeRunner(original));
 
       let caught: unknown;
       try { await checker.check(); } catch (e) { caught = e; }
 
-      expect((caught as GitError).cause).toBe(original);
+      // cause is error.cause (the root), not error itself — no GitError → cause → GitError chain
+      expect((caught as GitError).cause).toBe(rootCause);
     });
 
-    test("original details are accessible via cause; step context is added to details", async () => {
+    test("re-thrown GitError merges original details with step and completedSteps", async () => {
       mockBunFileExists(false);
       const original = new GitError({
         code: GitCode.NOT_A_REPO,
@@ -368,19 +376,15 @@ describe("RepoChecker", () => {
       try { await checker.check(); } catch (e) { caught = e; }
 
       const e = caught as GitError;
-      // step context is in details
+      // original details and step context are all merged into e.details
+      expect(e.details?.cwd).toBe("/project");
+      expect(e.details?.stderr).toBe("fatal: not a git repository");
       expect(e.details?.step).toBe("is-repo");
       expect(e.details?.completedSteps).toEqual([]);
-      // original details are preserved in cause
-      const cause = e.cause as GitError;
-      expect(cause.details?.cwd).toBe("/project");
-      expect(cause.details?.stderr).toBe("fatal: not a git repository");
     });
 
     test("completedSteps in re-thrown error is a snapshot (not the live array)", async () => {
       mockBunFileExists(false);
-      const original = new GitError({ code: GitCode.LOCK_FILE_EXISTS, message: "lock" });
-      const checker = new RepoChecker(makeRunner(r({ stdout: GIT_DIR })));
       jest.restoreAllMocks();
       mockBunFileExists(true);
       const runner = makeRunner(r({ stdout: GIT_DIR }));
@@ -433,8 +437,8 @@ describe("RepoChecker", () => {
       try { await checker.check(); } catch (e) { caught = e; }
 
       expect(caught).toBeInstanceOf(GitError);
-      // The original LOCK_FILE_EXISTS error is accessible via cause
-      expect(((caught as GitError).cause as GitError).code).toBe(GitCode.LOCK_FILE_EXISTS);
+      // GitError: original code is preserved in the re-thrown error
+      expect((caught as GitError).code).toBe(GitCode.LOCK_FILE_EXISTS);
     });
 
     test("checks the path <gitDir>/index.lock", async () => {
@@ -453,8 +457,8 @@ describe("RepoChecker", () => {
       let caught: unknown;
       try { await checker.check(); } catch (e) { caught = e; }
 
-      // lockPath is in the original error's details, accessible via cause
-      expect(((caught as GitError).cause as GitError).details?.lockPath).toBe(`${GIT_DIR}/index.lock`);
+      // lockPath is merged into e.details along with step context
+      expect((caught as GitError).details?.lockPath).toBe(`${GIT_DIR}/index.lock`);
     });
   });
 
@@ -472,7 +476,7 @@ describe("RepoChecker", () => {
       expect(result.context).not.toHaveProperty("stagingState");
     });
 
-    test("throws with unstagedFiles in cause when staging is empty but workdir is dirty", async () => {
+    test("throws STAGING_EMPTY with unstagedFiles when staging is empty but workdir is dirty", async () => {
       mockBunFileExists(false);
       const checker = new RepoChecker(makeRunner(
         r({ stdout: GIT_DIR }),
@@ -486,9 +490,9 @@ describe("RepoChecker", () => {
 
       expect(caught).toBeInstanceOf(GitError);
       const e = caught as GitError;
-      expect(e.code).toBe(GitCode.COMMAND_FAILED);
-      expect((e.cause as GitError).code).toBe(GitCode.STAGING_EMPTY);
-      expect((e.cause as GitError).details?.unstagedFiles).toEqual(["src/foo.ts", "src/bar.ts"]);
+      // GitError: original code and merged details
+      expect(e.code).toBe(GitCode.STAGING_EMPTY);
+      expect(e.details?.unstagedFiles).toEqual(["src/foo.ts", "src/bar.ts"]);
     });
 
     test("filters empty lines from diff --name-only output", async () => {
@@ -503,7 +507,7 @@ describe("RepoChecker", () => {
       let caught: unknown;
       try { await checker.check(); } catch (e) { caught = e; }
 
-      expect(((caught as GitError).cause as GitError).details?.unstagedFiles).toEqual(["src/foo.ts", "src/bar.ts"]);
+      expect((caught as GitError).details?.unstagedFiles).toEqual(["src/foo.ts", "src/bar.ts"]);
     });
 
     test("throws NOTHING_TO_COMMIT when both staging and workdir are clean", async () => {
@@ -519,8 +523,8 @@ describe("RepoChecker", () => {
 
       expect(caught).toBeInstanceOf(GitError);
       const e = caught as GitError;
-      expect(e.code).toBe(GitCode.COMMAND_FAILED);
-      expect((e.cause as GitError).code).toBe(GitCode.NOTHING_TO_COMMIT);
+      // GitError: original NOTHING_TO_COMMIT code is preserved
+      expect(e.code).toBe(GitCode.NOTHING_TO_COMMIT);
       expect(e.message).toContain("no changes to commit");
     });
 

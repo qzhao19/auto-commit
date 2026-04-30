@@ -1,5 +1,3 @@
-// test/unittests/git-runner.runner.test.ts
-
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, rm, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";

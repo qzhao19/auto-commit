@@ -15,7 +15,7 @@ const NO_TOML = join(tmpdir(), "__e2e_no_config__.toml");
 // Minimal token-consuming prompt
 const PING_PROMPT = "Reply with exactly the single word 'pong' and nothing else.";
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───
 
 /**
  * Construct minimal env injected into ConfigLoader, disable retries for fast e2e failure.
@@ -42,7 +42,7 @@ async function isReachable(url: string, timeoutMs = 3000): Promise<boolean> {
   }
 }
 
-// ── OpenAI ───────────────────────────────────────────────────────────────────
+// ── OpenAI ────
 
 const OPENAI_API_KEY = process.env.E2E_OPENAI_API_KEY ?? "";
 const OPENAI_MODEL   = process.env.E2E_OPENAI_MODEL ?? "gpt-4o-mini";
@@ -118,7 +118,7 @@ const OPENAI_MODEL   = process.env.E2E_OPENAI_MODEL ?? "gpt-4o-mini";
   },
 );
 
-// ── DeepSeek ─────────────────────────────────────────────────────────────────
+// ── DeepSeek ──
 
 const DEEPSEEK_API_KEY = process.env.E2E_DEEPSEEK_API_KEY ?? "";
 const DEEPSEEK_MODEL   = process.env.E2E_DEEPSEEK_MODEL ?? "deepseek-chat";
@@ -189,7 +189,7 @@ const DEEPSEEK_MODEL   = process.env.E2E_DEEPSEEK_MODEL ?? "deepseek-chat";
   },
 );
 
-// ── Ollama ───────────────────────────────────────────────────────────────────
+// ── Ollama ────
 
 const OLLAMA_BASE_URL = process.env.E2E_OLLAMA_BASE_URL ?? "http://localhost:11434";
 const OLLAMA_MODEL    = process.env.E2E_OLLAMA_MODEL ?? "llama3";
