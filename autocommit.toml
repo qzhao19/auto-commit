@@ -1,0 +1,46 @@
+# ─────────────────────────────────────────────────────────
+# LLM Provider Configuration
+# ─────────────────────────────────────────────────────────
+[llm]
+# The provider name of model (e.g., "openai")
+provider = ""
+
+# Model identifier (required)
+# Examples: gpt-4o-mini, claude-3-5-sonnet, deepseek-chat
+model = ""
+
+# Optional: Custom API base URL
+# # Examples: 
+#   - https://api.deepseek.com/v1
+#   - http://localhost:11434/v1 (for Ollama)
+# Leave empty for default provider endpoint
+baseUrl = ""
+
+# ⚠️ WARNING: Setting apiKey here is insecure. Use AUTOCOMMIT_API_KEY env var instead.
+# apiKey = ""
+
+# Generation parameters (optional; each has a default)
+temperature = 0.8
+maxTokens = 4096
+topP = 0.9
+frequencyPenalty = 0
+presencePenalty = 0
+
+# ─────────────────────────────────────────────────────────
+# RequestGuards Strategies
+# ─────────────────────────────────────────────────────────
+
+[requestGuards.retry]
+maxRetries = 3
+initialDelayMs = 1000
+maxDelayMs = 10000
+factor = 2
+jitter = true
+
+[requestGuards.timeout]
+timeoutMs = 30000
+
+[requestGuards.rateLimiter]
+maxRequestsPerMinute = 20
+maxQueueSize = 1000
+requestTimeout = 30000
