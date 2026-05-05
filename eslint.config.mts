@@ -32,6 +32,9 @@ export default tseslint.config(
       "prefer-const": "error",
       "no-var": "error",
       "eqeqeq": ["error", "always"],
+      semi: ["error", "always"],
+      "semi-spacing": ["error", { before: false, after: true }],
+      quotes: ["error", "double"],
     },
   },
 
@@ -40,6 +43,9 @@ export default tseslint.config(
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-floating-promises": "off",
+      "@typescript-eslint/await-thenable": "off",
+      "@typescript-eslint/no-misused-promises": "off",
+      "@typescript-eslint/require-await": "off",
     },
   },
 );
