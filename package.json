@@ -4,12 +4,24 @@
   "type": "module",
   "private": true,
   "devDependencies": {
-    "@types/bun": "latest"
+    "@eslint/js": "^10.0.1",
+    "@types/bun": "latest",
+    "eslint": "^10.2.0",
+    "typescript-eslint": "^8.58.1"
   },
   "peerDependencies": {
     "typescript": "^5"
   },
   "dependencies": {
+    "commander": "^14.0.3",
     "openai": "^6.33.0"
+  },
+  "scripts": {
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
+    "test:unit": "bun test test/unittests/",
+    "test:e2e:openai": "E2E_OPENAI_API_KEY=$E2E_OPENAI_API_KEY bun test test/e2e/",
+    "test:e2e:deepseek": "E2E_DEEPSEEK_API_KEY=$E2E_DEEPSEEK_API_KEY bun test test/e2e/",
+    "test:e2e:ollama": "E2E_OLLAMA_BASE_URL=$E2E_OLLAMA_BASE_URL E2E_OLLAMA_MODEL=$E2E_OLLAMA_MODEL bun test test/e2e/"
   }
 }
