@@ -195,7 +195,7 @@ describe("RepoChecker e2e", () => {
       expect(result.context.currentBranch).toBe("feature/my-branch");
     });
 
-    test("completedSteps contains all 6 steps in execution order", async () => {
+    test("completedSteps contains all 5 steps in execution order", async () => {
       await initRepo(repoDir);
       await stageFile(repoDir, "file.txt");
       const checker = new RepoChecker(new GitRunner({ cwd: repoDir }));
@@ -206,7 +206,6 @@ describe("RepoChecker e2e", () => {
         "is-repo",
         "lock-check",
         "staging-check",
-        "resolve-worktree",
         "initial-commit-check",
         "detached-head-check",
       ]);
