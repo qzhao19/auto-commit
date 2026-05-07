@@ -6,7 +6,6 @@ export type GitPrecheckStep =
   | "is-repo"
   | "lock-check"
   | "staging-check"
-  | "resolve-worktree"
   | "initial-commit-check"
   | "detached-head-check";
 
@@ -19,7 +18,6 @@ export interface GitRepoPrecheckContext {
 }
 
 export interface GitRepoPrecheckResult {
-  success: true;
   finalStep: GitPrecheckStep;
   completedSteps: GitPrecheckStep[];
   context: GitRepoPrecheckContext;
@@ -69,7 +67,6 @@ export type GitInternalOpState =
     };
 
 export interface GitInternalOpDetectResult {
-  success: true;
   finalStep: GitStateDetectStep;
   completedSteps: GitStateDetectStep[];
   state: GitInternalOpState;
