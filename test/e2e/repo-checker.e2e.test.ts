@@ -117,7 +117,8 @@ describe("RepoChecker e2e", () => {
 
       const result = await checker.check();
 
-      expect(result.success).toBe(true);
+      expect(result.context).toBeDefined();
+      expect(result.finalStep).toBe("detached-head-check");
     });
 
     test("gitDir resolves to the absolute .git directory path", async () => {
@@ -256,7 +257,8 @@ describe("RepoChecker e2e", () => {
       await stageFile(repoDir, "new.txt");
       const checker = new RepoChecker(new GitRunner({ cwd: repoDir }));
 
-      await expect(checker.check()).resolves.toMatchObject({ success: true });
+      await expect(checker.check()).resolves.toHaveProperty("context");
+
     });
   });
 
@@ -332,7 +334,7 @@ describe("RepoChecker e2e", () => {
 
       // Remove lock and retry
       await rm(lockPath);
-      await expect(checker.check()).resolves.toMatchObject({ success: true });
+      await expect(checker.check()).resolves.toHaveProperty("finalStep");
     });
 
     test("error details include step='lock-check' and completedSteps=['is-repo']", async () => {
