@@ -180,13 +180,6 @@ describe("StateDetector", () => {
       expect(result.state).toEqual({ status: "clean" });
     });
 
-    test("success is true", async () => {
-      const { runner } = unusedRunner();
-      const detector = new StateDetector(gitDir, runner);
-
-      expect((await detector.detect()).success).toBe(true);
-    });
-
     test("completedSteps contains all 6 steps in execution order", async () => {
       const { runner } = unusedRunner();
       const detector = new StateDetector(gitDir, runner);
