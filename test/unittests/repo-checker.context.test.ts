@@ -48,16 +48,15 @@ function mockBunFileExists(exists: boolean) {
 
 /**
  * Standard runner responses for a successful run.
- * resolveWorkTree makes 2 run() calls: --is-bare-repository then --show-toplevel.
+ * checkIsRepo makes 2 run() calls: --git-dir/--is-bare-repository then --show-toplevel.
  */
 function happyResponses(): GitRunResult[] {
   return [
-    r({ stdout: GIT_DIR }),        // 1. checkIsRepo
-    r({ exitCode: 1 }),            // 3. resolveStagingState → has-staged-changes
-    r({ stdout: "false" }),        // 4a. resolveWorkTree → --is-bare-repository
-    r({ stdout: WORKTREE }),       // 4b. resolveWorkTree → --show-toplevel
-    r({ exitCode: 0 }),            // 5. detectInitialCommit → HEAD exists
-    r({ stdout: BRANCH }),         // 6. detectHeadState → normal branch
+    r({ stdout: `${GIT_DIR}\nfalse` }),  // 1a. checkIsRepo → --git-dir --is-bare-repository
+    r({ stdout: WORKTREE }),              // 1b. checkIsRepo → --show-toplevel
+    r({ exitCode: 1 }),                   // 2. resolveStagingState → has-staged-changes
+    r({ exitCode: 0 }),                   // 3. detectInitialCommit → HEAD exists
+    r({ stdout: BRANCH }),                // 4. detectHeadState → normal branch
   ];
 }
 
@@ -88,7 +87,7 @@ describe("RepoChecker", () => {
       expect(result.context.currentBranch).toBe("main");
     });
 
-    test("completedSteps lists all 6 steps in execution order", async () => {
+    test("completedSteps lists all 5 steps in execution order", async () => {
       mockBunFileExists(false);
       const checker = new RepoChecker(makeRunner(...happyResponses()));
 
@@ -98,7 +97,6 @@ describe("RepoChecker", () => {
         "is-repo",
         "lock-check",
         "staging-check",
-        "resolve-worktree",
         "initial-commit-check",
         "detached-head-check",
       ]);
@@ -116,12 +114,11 @@ describe("RepoChecker", () => {
     test("isInitialCommit is true when rev-parse HEAD exits with code 128", async () => {
       mockBunFileExists(false);
       const checker = new RepoChecker(makeRunner(
-        r({ stdout: GIT_DIR }),   // checkIsRepo
-        r({ exitCode: 1 }),       // resolveStagingState
-        r({ stdout: "false" }),   // resolveWorkTree → --is-bare-repository
-        r({ stdout: WORKTREE }),  // resolveWorkTree → --show-toplevel
-        r({ exitCode: 128 }),     // detectInitialCommit → no HEAD yet
-        r({ stdout: BRANCH }),    // detectHeadState
+        r({ stdout: `${GIT_DIR}\nfalse` }),  // checkIsRepo → --git-dir --is-bare-repository
+        r({ stdout: WORKTREE }),              // checkIsRepo → --show-toplevel
+        r({ exitCode: 1 }),                   // resolveStagingState
+        r({ exitCode: 128 }),                 // detectInitialCommit → no HEAD yet
+        r({ stdout: BRANCH }),                // detectHeadState
       ));
 
       const result = await checker.check();
@@ -133,10 +130,9 @@ describe("RepoChecker", () => {
       spyOn(console, "warn").mockImplementation(() => {});
       mockBunFileExists(false);
       const checker = new RepoChecker(makeRunner(
-        r({ stdout: GIT_DIR }),
-        r({ exitCode: 1 }),
-        r({ stdout: "false" }),   // resolveWorkTree → --is-bare-repository
+        r({ stdout: `${GIT_DIR}\nfalse` }),
         r({ stdout: WORKTREE }),
+        r({ exitCode: 1 }),
         r({ exitCode: 0 }),
         r({ exitCode: 1 }),       // symbolic-ref → detached HEAD
       ));
@@ -150,10 +146,9 @@ describe("RepoChecker", () => {
     test("currentBranch strips the refs/heads/ prefix from symbolic-ref output", async () => {
       mockBunFileExists(false);
       const checker = new RepoChecker(makeRunner(
-        r({ stdout: GIT_DIR }),
-        r({ exitCode: 1 }),
-        r({ stdout: "false" }),   // resolveWorkTree → --is-bare-repository
+        r({ stdout: `${GIT_DIR}\nfalse` }),
         r({ stdout: WORKTREE }),
+        r({ exitCode: 1 }),
         r({ exitCode: 0 }),
         r({ stdout: "refs/heads/feat/my-feature" }),
       ));
@@ -166,10 +161,9 @@ describe("RepoChecker", () => {
     test("resolves a relative gitDir by joining it with the result cwd", async () => {
       mockBunFileExists(false);
       const checker = new RepoChecker(makeRunner(
-        r({ stdout: ".git", cwd: "/repo" }),  // relative path
-        r({ exitCode: 1 }),
-        r({ stdout: "false" }),   // resolveWorkTree → --is-bare-repository
+        r({ stdout: ".git\nfalse", cwd: "/repo" }),  // relative path
         r({ stdout: WORKTREE }),
+        r({ exitCode: 1 }),
         r({ exitCode: 0 }),
         r({ stdout: BRANCH }),
       ));
@@ -182,10 +176,9 @@ describe("RepoChecker", () => {
     test("returns an absolute gitDir unchanged when --git-dir output starts with '/'", async () => {
       mockBunFileExists(false);
       const checker = new RepoChecker(makeRunner(
-        r({ stdout: "/absolute/.git" }),
-        r({ exitCode: 1 }),
-        r({ stdout: "false" }),   // resolveWorkTree → --is-bare-repository
+        r({ stdout: "/absolute/.git\nfalse" }),
         r({ stdout: WORKTREE }),
+        r({ exitCode: 1 }),
         r({ exitCode: 0 }),
         r({ stdout: BRANCH }),
       ));
@@ -210,8 +203,23 @@ describe("RepoChecker", () => {
 
       expect(caught).toBeInstanceOf(GitError);
       const e = caught as GitError;
-      // GitError: original code is preserved
       expect(e.code).toBe(GitCode.NOT_A_REPO);
+      expect(e.details?.step).toBe("is-repo");
+      expect(e.details?.completedSteps).toEqual([]);
+    });
+
+    test("step 1b failure (show-toplevel inside is-repo): step='is-repo' and completedSteps=[]", async () => {
+      mockBunFileExists(false);
+      const worktreeError = new GitError({ code: GitCode.COMMAND_FAILED, message: "show-toplevel failed" });
+      const checker = new RepoChecker(makeRunner(
+        r({ stdout: `${GIT_DIR}\nfalse` }),  // --git-dir --is-bare-repository succeeds
+        worktreeError,                        // --show-toplevel fails inside checkIsRepo
+      ));
+
+      let caught: unknown;
+      try { await checker.check(); } catch (e) { caught = e; }
+
+      const e = caught as GitError;
       expect(e.details?.step).toBe("is-repo");
       expect(e.details?.completedSteps).toEqual([]);
     });
@@ -219,7 +227,8 @@ describe("RepoChecker", () => {
     test("step 2 failure (lock-check): re-throws with step='lock-check', completedSteps=['is-repo']", async () => {
       mockBunFileExists(true);  // lock file exists
       const checker = new RepoChecker(makeRunner(
-        r({ stdout: GIT_DIR }),  // checkIsRepo succeeds
+        r({ stdout: `${GIT_DIR}\nfalse` }),  // checkIsRepo: --git-dir --is-bare-repository
+        r({ stdout: WORKTREE }),              // checkIsRepo: --show-toplevel
       ));
 
       let caught: unknown;
@@ -227,7 +236,6 @@ describe("RepoChecker", () => {
 
       expect(caught).toBeInstanceOf(GitError);
       const e = caught as GitError;
-      // GitError: original code is preserved
       expect(e.code).toBe(GitCode.LOCK_FILE_EXISTS);
       expect(e.details?.step).toBe("lock-check");
       expect(e.details?.completedSteps).toEqual(["is-repo"]);
@@ -236,7 +244,8 @@ describe("RepoChecker", () => {
     test("step 3 failure (staging-check / nothing-to-commit): completedSteps=['is-repo','lock-check']", async () => {
       mockBunFileExists(false);
       const checker = new RepoChecker(makeRunner(
-        r({ stdout: GIT_DIR }),   // checkIsRepo
+        r({ stdout: `${GIT_DIR}\nfalse` }),
+        r({ stdout: WORKTREE }),
         r({ exitCode: 0 }),       // diff --cached (staging empty)
         r({ exitCode: 0 }),       // diff --quiet (workdir clean too)
       ));
@@ -246,7 +255,6 @@ describe("RepoChecker", () => {
 
       expect(caught).toBeInstanceOf(GitError);
       const e = caught as GitError;
-      // GitError: original NOTHING_TO_COMMIT code is preserved
       expect(e.code).toBe(GitCode.NOTHING_TO_COMMIT);
       expect(e.details?.step).toBe("staging-check");
       expect(e.details?.completedSteps).toEqual(["is-repo", "lock-check"]);
@@ -255,7 +263,8 @@ describe("RepoChecker", () => {
     test("step 3 failure (staging-check / unstaged): details includes unstagedFiles", async () => {
       mockBunFileExists(false);
       const checker = new RepoChecker(makeRunner(
-        r({ stdout: GIT_DIR }),
+        r({ stdout: `${GIT_DIR}\nfalse` }),
+        r({ stdout: WORKTREE }),
         r({ exitCode: 0 }),                              // staging empty
         r({ exitCode: 1 }),                              // workdir dirty
         r({ stdout: "src/a.ts\nsrc/b.ts\n" }),          // diff --name-only
@@ -265,36 +274,17 @@ describe("RepoChecker", () => {
       try { await checker.check(); } catch (e) { caught = e; }
 
       const e = caught as GitError;
-      // original details are merged into e.details along with step context
       expect(e.details?.step).toBe("staging-check");
       expect(e.details?.unstagedFiles).toEqual(["src/a.ts", "src/b.ts"]);
     });
 
-    test("step 4 failure (resolve-worktree): completedSteps contains first 3 steps", async () => {
-      mockBunFileExists(false);
-      const worktreeError = new GitError({ code: GitCode.COMMAND_FAILED, message: "show-toplevel failed" });
-      const checker = new RepoChecker(makeRunner(
-        r({ stdout: GIT_DIR }),
-        r({ exitCode: 1 }),   // has staged
-        worktreeError,        // resolveWorkTree throws on --is-bare-repository call
-      ));
-
-      let caught: unknown;
-      try { await checker.check(); } catch (e) { caught = e; }
-
-      const e = caught as GitError;
-      expect(e.details?.step).toBe("resolve-worktree");
-      expect(e.details?.completedSteps).toEqual(["is-repo", "lock-check", "staging-check"]);
-    });
-
-    test("step 5 failure (initial-commit-check): completedSteps contains first 4 steps", async () => {
+    test("step 4 failure (initial-commit-check): completedSteps contains first 3 steps", async () => {
       mockBunFileExists(false);
       const headError = new GitError({ code: GitCode.COMMAND_FAILED, message: "rev-parse failed" });
       const checker = new RepoChecker(makeRunner(
-        r({ stdout: GIT_DIR }),
-        r({ exitCode: 1 }),
-        r({ stdout: "false" }),   // resolveWorkTree → --is-bare-repository
+        r({ stdout: `${GIT_DIR}\nfalse` }),
         r({ stdout: WORKTREE }),
+        r({ exitCode: 1 }),
         headError,
       ));
 
@@ -303,19 +293,16 @@ describe("RepoChecker", () => {
 
       const e = caught as GitError;
       expect(e.details?.step).toBe("initial-commit-check");
-      expect(e.details?.completedSteps).toEqual([
-        "is-repo", "lock-check", "staging-check", "resolve-worktree",
-      ]);
+      expect(e.details?.completedSteps).toEqual(["is-repo", "lock-check", "staging-check"]);
     });
 
-    test("step 6 failure (detached-head-check): completedSteps contains first 5 steps", async () => {
+    test("step 5 failure (detached-head-check): completedSteps contains first 4 steps", async () => {
       mockBunFileExists(false);
       const headStateError = new GitError({ code: GitCode.COMMAND_FAILED, message: "symbolic-ref failed" });
       const checker = new RepoChecker(makeRunner(
-        r({ stdout: GIT_DIR }),
-        r({ exitCode: 1 }),
-        r({ stdout: "false" }),   // resolveWorkTree → --is-bare-repository
+        r({ stdout: `${GIT_DIR}\nfalse` }),
         r({ stdout: WORKTREE }),
+        r({ exitCode: 1 }),
         r({ exitCode: 0 }),
         headStateError,
       ));
@@ -326,7 +313,7 @@ describe("RepoChecker", () => {
       const e = caught as GitError;
       expect(e.details?.step).toBe("detached-head-check");
       expect(e.details?.completedSteps).toEqual([
-        "is-repo", "lock-check", "staging-check", "resolve-worktree", "initial-commit-check",
+        "is-repo", "lock-check", "staging-check", "initial-commit-check",
       ]);
     });
 
@@ -359,7 +346,6 @@ describe("RepoChecker", () => {
       let caught: unknown;
       try { await checker.check(); } catch (e) { caught = e; }
 
-      // cause is error.cause (the root), not error itself — no GitError → cause → GitError chain
       expect((caught as GitError).cause).toBe(rootCause);
     });
 
@@ -376,7 +362,6 @@ describe("RepoChecker", () => {
       try { await checker.check(); } catch (e) { caught = e; }
 
       const e = caught as GitError;
-      // original details and step context are all merged into e.details
       expect(e.details?.cwd).toBe("/project");
       expect(e.details?.stderr).toBe("fatal: not a git repository");
       expect(e.details?.step).toBe("is-repo");
@@ -387,7 +372,10 @@ describe("RepoChecker", () => {
       mockBunFileExists(false);
       jest.restoreAllMocks();
       mockBunFileExists(true);
-      const runner = makeRunner(r({ stdout: GIT_DIR }));
+      const runner = makeRunner(
+        r({ stdout: `${GIT_DIR}\nfalse` }),
+        r({ stdout: WORKTREE }),
+      );
       const checker2 = new RepoChecker(runner);
 
       let caught: unknown;
@@ -431,13 +419,15 @@ describe("RepoChecker", () => {
 
     test("throws GitError(LOCK_FILE_EXISTS) when index.lock exists", async () => {
       mockBunFileExists(true);
-      const checker = new RepoChecker(makeRunner(r({ stdout: GIT_DIR })));
+      const checker = new RepoChecker(makeRunner(
+        r({ stdout: `${GIT_DIR}\nfalse` }),
+        r({ stdout: WORKTREE }),
+      ));
 
       let caught: unknown;
       try { await checker.check(); } catch (e) { caught = e; }
 
       expect(caught).toBeInstanceOf(GitError);
-      // GitError: original code is preserved in the re-thrown error
       expect((caught as GitError).code).toBe(GitCode.LOCK_FILE_EXISTS);
     });
 
@@ -452,12 +442,14 @@ describe("RepoChecker", () => {
 
     test("lockPath is included in error details when lock exists", async () => {
       mockBunFileExists(true);
-      const checker = new RepoChecker(makeRunner(r({ stdout: GIT_DIR })));
+      const checker = new RepoChecker(makeRunner(
+        r({ stdout: `${GIT_DIR}\nfalse` }),
+        r({ stdout: WORKTREE }),
+      ));
 
       let caught: unknown;
       try { await checker.check(); } catch (e) { caught = e; }
 
-      // lockPath is merged into e.details along with step context
       expect((caught as GitError).details?.lockPath).toBe(`${GIT_DIR}/index.lock`);
     });
   });
@@ -471,7 +463,6 @@ describe("RepoChecker", () => {
 
       const result = await checker.check();
 
-      // stagingState is removed from context; a successful check() implies has-staged-changes
       expect(result.success).toBe(true);
       expect(result.context).not.toHaveProperty("stagingState");
     });
@@ -479,7 +470,8 @@ describe("RepoChecker", () => {
     test("throws STAGING_EMPTY with unstagedFiles when staging is empty but workdir is dirty", async () => {
       mockBunFileExists(false);
       const checker = new RepoChecker(makeRunner(
-        r({ stdout: GIT_DIR }),
+        r({ stdout: `${GIT_DIR}\nfalse` }),
+        r({ stdout: WORKTREE }),
         r({ exitCode: 0 }),                              // diff --cached → staging empty
         r({ exitCode: 1 }),                              // diff --quiet → workdir dirty
         r({ stdout: "src/foo.ts\nsrc/bar.ts\n" }),       // diff --name-only
@@ -490,7 +482,6 @@ describe("RepoChecker", () => {
 
       expect(caught).toBeInstanceOf(GitError);
       const e = caught as GitError;
-      // GitError: original code and merged details
       expect(e.code).toBe(GitCode.STAGING_EMPTY);
       expect(e.details?.unstagedFiles).toEqual(["src/foo.ts", "src/bar.ts"]);
     });
@@ -498,7 +489,8 @@ describe("RepoChecker", () => {
     test("filters empty lines from diff --name-only output", async () => {
       mockBunFileExists(false);
       const checker = new RepoChecker(makeRunner(
-        r({ stdout: GIT_DIR }),
+        r({ stdout: `${GIT_DIR}\nfalse` }),
+        r({ stdout: WORKTREE }),
         r({ exitCode: 0 }),
         r({ exitCode: 1 }),
         r({ stdout: "\nsrc/foo.ts\n\nsrc/bar.ts\n" }),   // blank lines present
@@ -513,7 +505,8 @@ describe("RepoChecker", () => {
     test("throws NOTHING_TO_COMMIT when both staging and workdir are clean", async () => {
       mockBunFileExists(false);
       const checker = new RepoChecker(makeRunner(
-        r({ stdout: GIT_DIR }),
+        r({ stdout: `${GIT_DIR}\nfalse` }),
+        r({ stdout: WORKTREE }),
         r({ exitCode: 0 }),   // diff --cached clean
         r({ exitCode: 0 }),   // diff --quiet clean
       ));
@@ -523,7 +516,6 @@ describe("RepoChecker", () => {
 
       expect(caught).toBeInstanceOf(GitError);
       const e = caught as GitError;
-      // GitError: original NOTHING_TO_COMMIT code is preserved
       expect(e.code).toBe(GitCode.NOTHING_TO_COMMIT);
       expect(e.message).toContain("no changes to commit");
     });
@@ -531,7 +523,8 @@ describe("RepoChecker", () => {
     test("unstaged-files error message contains 'git add' hint", async () => {
       mockBunFileExists(false);
       const checker = new RepoChecker(makeRunner(
-        r({ stdout: GIT_DIR }),
+        r({ stdout: `${GIT_DIR}\nfalse` }),
+        r({ stdout: WORKTREE }),
         r({ exitCode: 0 }),
         r({ exitCode: 1 }),
         r({ stdout: "README.md\n" }),
@@ -550,10 +543,9 @@ describe("RepoChecker", () => {
     test("isInitialCommit is false when rev-parse HEAD exits 0 (commits exist)", async () => {
       mockBunFileExists(false);
       const checker = new RepoChecker(makeRunner(
-        r({ stdout: GIT_DIR }),
-        r({ exitCode: 1 }),
-        r({ stdout: "false" }),   // resolveWorkTree → --is-bare-repository
+        r({ stdout: `${GIT_DIR}\nfalse` }),
         r({ stdout: WORKTREE }),
+        r({ exitCode: 1 }),
         r({ exitCode: 0 }),     // HEAD exists
         r({ stdout: BRANCH }),
       ));
@@ -566,10 +558,9 @@ describe("RepoChecker", () => {
     test("isInitialCommit is true when rev-parse HEAD exits 128 (no commits yet)", async () => {
       mockBunFileExists(false);
       const checker = new RepoChecker(makeRunner(
-        r({ stdout: GIT_DIR }),
-        r({ exitCode: 1 }),
-        r({ stdout: "false" }),   // resolveWorkTree → --is-bare-repository
+        r({ stdout: `${GIT_DIR}\nfalse` }),
         r({ stdout: WORKTREE }),
+        r({ exitCode: 1 }),
         r({ exitCode: 128 }),   // no HEAD
         r({ stdout: BRANCH }),
       ));
@@ -586,10 +577,9 @@ describe("RepoChecker", () => {
     test("isDetachedHead is false and currentBranch is parsed when symbolic-ref exits 0", async () => {
       mockBunFileExists(false);
       const checker = new RepoChecker(makeRunner(
-        r({ stdout: GIT_DIR }),
-        r({ exitCode: 1 }),
-        r({ stdout: "false" }),   // resolveWorkTree → --is-bare-repository
+        r({ stdout: `${GIT_DIR}\nfalse` }),
         r({ stdout: WORKTREE }),
+        r({ exitCode: 1 }),
         r({ exitCode: 0 }),
         r({ stdout: "refs/heads/develop" }),
       ));
@@ -604,10 +594,9 @@ describe("RepoChecker", () => {
       const warnSpy = spyOn(console, "warn").mockImplementation(() => {});
       mockBunFileExists(false);
       const checker = new RepoChecker(makeRunner(
-        r({ stdout: GIT_DIR }),
-        r({ exitCode: 1 }),
-        r({ stdout: "false" }),   // resolveWorkTree → --is-bare-repository
+        r({ stdout: `${GIT_DIR}\nfalse` }),
         r({ stdout: WORKTREE }),
+        r({ exitCode: 1 }),
         r({ exitCode: 0 }),
         r({ exitCode: 1 }),   // symbolic-ref exits 1 → detached
       ));
