@@ -65,7 +65,6 @@ export class RepoChecker {
       };
 
       return {
-        success: true,
         finalStep: currentStep,
         completedSteps,
         context,
