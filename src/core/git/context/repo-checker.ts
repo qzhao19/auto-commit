@@ -35,8 +35,11 @@ export class RepoChecker {
     };
 
     try {
-      // 1. Check if it is a Git repository
-      const gitDir = await runPrecheckStep("is-repo", () => this.checkIsRepo());
+      // 1. Check if it is a Git repository，and get the repository root path
+      const { gitDir, workTree } = await runPrecheckStep(
+        "is-repo",
+        () => this.checkIsRepo(),
+      );
 
       // 2. Check if other Git processes are occupying index.lock
       await runPrecheckStep("lock-check", () => this.checkLockFile(gitDir));
@@ -44,13 +47,10 @@ export class RepoChecker {
       // 3. Staging area + working directory state
       await runPrecheckStep("staging-check", () => this.resolveStagingState());
 
-      // 4. Get the repository root path
-      const workTree = await runPrecheckStep("resolve-worktree", () => this.resolveWorkTree());
-
-      // 5. Check if this is the initial commit
+      // 4. Check if this is the initial commit
       const isInitialCommit = await runPrecheckStep("initial-commit-check", () => this.detectInitialCommit());
 
-      // 6. Check if HEAD is detached (warn but do not interrupt)
+      // 5. Check if HEAD is detached (warn but do not interrupt)
       const { isDetachedHead, currentBranch } = await runPrecheckStep(
         "detached-head-check",
         () => this.detectHeadState(),
@@ -94,11 +94,11 @@ export class RepoChecker {
     }
   }
 
-  // ── 1. Determine whether it is a Git repository ──
+  // ── 1. Determine whether it is a Git repo & Bare repo, get the root path of the repository──
 
-  private async checkIsRepo(): Promise<string> {
+  private async checkIsRepo(): Promise<{ gitDir: string, workTree: string }> {
     const result: GitRunResult = await this.runner.run(
-      ["rev-parse", "--git-dir"],
+      ["rev-parse", "--git-dir", "--is-bare-repository"],
       { allowedExitCodes: [0, 128] },
     );
 
@@ -110,11 +110,26 @@ export class RepoChecker {
       });
     }
 
+    const [rawGitDir, isBareRepo] = result.stdout.split("\n");
+
+    if (isBareRepo === "true") {
+      throw new GitError({
+        code: GitCode.BARE_REPO_UNSUPPORTED,
+        message: "Bare repositories are not supported. A working tree is required.",
+      });
+    }
+
     // --git-dir may return relative paths within the worktree or submodule; 
     // convert them all to absolute paths
-    const stdout: string = result.stdout;
-    return stdout.startsWith("/") ? stdout : join(result.cwd, stdout);
+    const gitDir: string = rawGitDir!.startsWith("/") 
+      ? rawGitDir! 
+      : join(result.cwd, rawGitDir!);
+
+    const workTreeResult = await this.runner.run(["rev-parse", "--show-toplevel"]);
+
+    return {gitDir, workTree: workTreeResult.stdout};
   }
+
 
   // ── 2. Check if other Git processes are running ──
 
@@ -140,6 +155,7 @@ export class RepoChecker {
    * Throws GitError if the staging area is empty or there is nothing to commit.
    */
   private async resolveStagingState(): Promise<void> {
+    // Check if staging area is empty
     const cached: GitRunResult = await this.runner.run(
       ["diff", "--cached", "--quiet"],
       { allowedExitCodes: [0, 1] },
@@ -149,17 +165,19 @@ export class RepoChecker {
       return; // has-staged-changes: normal commit path
     }
 
-    // Staging area is empty; check the working directory
+    // Check if there are any staged changes in the working directory
     const workDir: GitRunResult = await this.runner.run(
       ["diff", "--quiet"],
       { allowedExitCodes: [0, 1] },
     );
 
     if (workDir.exitCode === 1) {
+      // Get unstaged files for error throw
       const nameOnly: GitRunResult = await this.runner.run(
         ["diff", "--name-only"],
         { allowedExitCodes: [0] },
       );
+
       const unstagedFiles: string[] = nameOnly.stdout
         .split("\n")
         .filter((line) => line.length > 0);
@@ -175,20 +193,6 @@ export class RepoChecker {
       code: GitCode.NOTHING_TO_COMMIT,
       message: "There are no changes to commit.",
     });
-  }
-
-    // ── 4. Get the root path of the repository ──
-
-  private async resolveWorkTree(): Promise<string> {
-    const isBare = await this.runner.run(["rev-parse", "--is-bare-repository"]);
-    if (isBare.stdout === "true") {
-      throw new GitError({
-        code: GitCode.BARE_REPO_UNSUPPORTED,
-        message: "Bare repositories are not supported. A working tree is required.",
-      });
-    }
-    const worktree = await this.runner.run(["rev-parse", "--show-toplevel"]);
-    return worktree.stdout;
   }
 
   // ── 5. Determine whether this is the initial commit ──
