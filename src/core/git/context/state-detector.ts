@@ -38,36 +38,36 @@ export class StateDetector {
       // 5. rebase — takes priority over merge (rebase internally uses merge machinery)
       const rebaseState = await runDetectStep("rebase-detect", () => this.detectRebase());
       if (rebaseState !== null) {
-        return { success: true, finalStep: currentStep, completedSteps, state: rebaseState };
+        return { finalStep: currentStep, completedSteps, state: rebaseState };
       }
 
       // 1. merge
       const mergeState = await runDetectStep("merge-detect", () => this.detectMerge());
       if (mergeState !== null) {
-        return { success: true, finalStep: currentStep,  completedSteps, state: mergeState};
+        return { finalStep: currentStep,  completedSteps, state: mergeState};
       }
 
       // 2. squash-merge
       const squashState = await runDetectStep("squash-detect", () => this.detectSquashMerge());
       if (squashState !== null) {
-        return { success: true, finalStep: currentStep, completedSteps, state: squashState };
+        return { finalStep: currentStep, completedSteps, state: squashState };
       }
 
       // 3. cherry-pick
       const cherryPickState = await runDetectStep("cherry-pick-detect", () => this.detectCherryPick());
       if (cherryPickState !== null) {
-        return { success: true, finalStep: currentStep, completedSteps, state: cherryPickState };
+        return { finalStep: currentStep, completedSteps, state: cherryPickState };
       }
 
       // 4. revert
       const revertState = await runDetectStep("revert-detect", () => this.detectRevert());
       if (revertState !== null) {
-        return { success: true, finalStep: currentStep, completedSteps, state: revertState };
+        return { finalStep: currentStep, completedSteps, state: revertState };
       }
 
       // All checks passed with no special state found
       const cleanState: GitInternalOpState = { status: "clean" };
-      return { success: true, finalStep: currentStep, completedSteps, state: cleanState };
+      return { finalStep: currentStep, completedSteps, state: cleanState };
 
     } catch (error) {
       const stepDetails = {
