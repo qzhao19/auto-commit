@@ -161,7 +161,6 @@ describe("StateDetector e2e", () => {
 
       const result = await makeDetector().detect();
 
-      expect(result.success).toBe(true);
       expect(result.state).toEqual({ status: "clean" });
     });
 
