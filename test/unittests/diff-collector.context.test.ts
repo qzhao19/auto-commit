@@ -53,17 +53,16 @@ function collectRunner(nameStatus: string, numstat: string, raw: string): GitRun
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("DiffCollector.collect() — empty staging area", () => {
-  test("returns success:true with a zero-count summary when all outputs are empty", async () => {
+  test("returns a zero-count summary when all outputs are empty", async () => {
     const collector = new DiffCollector(collectRunner("", "", ""));
     const result = await collector.collect();
 
-    expect(result.success).toBe(true);
-    expect(result.summary.totalFiles).toBe(0);
-    expect(result.summary.totalInsertions).toBe(0);
-    expect(result.summary.totalDeletions).toBe(0);
-    expect(result.summary.hasBinaryFiles).toBe(false);
-    expect(result.summary.hasSubmodules).toBe(false);
-    expect(result.summary.files).toHaveLength(0);
+    expect(result.totalFiles).toBe(0);
+    expect(result.totalInsertions).toBe(0);
+    expect(result.totalDeletions).toBe(0);
+    expect(result.hasBinaryFiles).toBe(false);
+    expect(result.hasSubmodules).toBe(false);
+    expect(result.files).toHaveLength(0);
   });
 });
 
@@ -80,8 +79,8 @@ describe("DiffCollector.collect() — basic file types", () => {
     ));
     const result = await collector.collect();
 
-    expect(result.summary.files).toHaveLength(1);
-    const file = result.summary.files[0]!;
+    expect(result.files).toHaveLength(1);
+    const file = result.files[0]!;
     expect(file.path).toBe("src/new.ts");
     expect(file.oldPath).toBeNull();
     expect(file.changeType).toBe("added");
@@ -101,7 +100,7 @@ describe("DiffCollector.collect() — basic file types", () => {
     ));
     const result = await collector.collect();
 
-    const file = result.summary.files[0]!;
+    const file = result.files[0]!;
     expect(file.changeType).toBe("modified");
     expect(file.insertions).toBe(5);
     expect(file.deletions).toBe(3);
@@ -115,7 +114,7 @@ describe("DiffCollector.collect() — basic file types", () => {
     ));
     const result = await collector.collect();
 
-    const file = result.summary.files[0]!;
+    const file = result.files[0]!;
     expect(file.changeType).toBe("deleted");
     expect(file.insertions).toBe(0);
     expect(file.deletions).toBe(20);
@@ -129,7 +128,7 @@ describe("DiffCollector.collect() — basic file types", () => {
     ));
     const result = await collector.collect();
 
-    expect(result.summary.files[0]!.changeType).toBe("type-changed");
+    expect(result.files[0]!.changeType).toBe("type-changed");
   });
 
   test("unknown status code defaults to changeType=modified", async () => {
@@ -140,7 +139,7 @@ describe("DiffCollector.collect() — basic file types", () => {
     ));
     const result = await collector.collect();
 
-    expect(result.summary.files[0]!.changeType).toBe("modified");
+    expect(result.files[0]!.changeType).toBe("modified");
   });
 });
 
@@ -157,7 +156,7 @@ describe("DiffCollector.collect() — renamed files", () => {
     ));
     const result = await collector.collect();
 
-    const file = result.summary.files[0]!;
+    const file = result.files[0]!;
     expect(file.changeType).toBe("renamed");
     expect(file.path).toBe("src/new.ts");
     expect(file.oldPath).toBe("src/old.ts");
@@ -172,7 +171,7 @@ describe("DiffCollector.collect() — renamed files", () => {
     ));
     const result = await collector.collect();
 
-    expect(result.summary.files[0]!.similarityScore).toBe(100);
+    expect(result.files[0]!.similarityScore).toBe(100);
   });
 
   test("rename with common prefix: src/{lib => utils}/index.ts — stats keyed by new path", async () => {
@@ -183,7 +182,7 @@ describe("DiffCollector.collect() — renamed files", () => {
     ));
     const result = await collector.collect();
 
-    const file = result.summary.files[0]!;
+    const file = result.files[0]!;
     expect(file.path).toBe("src/utils/index.ts");
     expect(file.oldPath).toBe("src/lib/index.ts");
     expect(file.insertions).toBe(3);
@@ -199,7 +198,7 @@ describe("DiffCollector.collect() — renamed files", () => {
     ));
     const result = await collector.collect();
 
-    expect(result.summary.files).toHaveLength(0);
+    expect(result.files).toHaveLength(0);
   });
 });
 
@@ -216,7 +215,7 @@ describe("DiffCollector.collect() — copied files", () => {
     ));
     const result = await collector.collect();
 
-    const file = result.summary.files[0]!;
+    const file = result.files[0]!;
     expect(file.changeType).toBe("copied");
     expect(file.path).toBe("src/copy.ts");
     expect(file.oldPath).toBe("src/orig.ts");
@@ -237,7 +236,7 @@ describe("DiffCollector.collect() — binary files", () => {
     ));
     const result = await collector.collect();
 
-    const file = result.summary.files[0]!;
+    const file = result.files[0]!;
     expect(file.isBinary).toBe(true);
     expect(file.insertions).toBeNull();
     expect(file.deletions).toBeNull();
@@ -251,7 +250,7 @@ describe("DiffCollector.collect() — binary files", () => {
     ));
     const result = await collector.collect();
 
-    expect(result.summary.hasBinaryFiles).toBe(true);
+    expect(result.hasBinaryFiles).toBe(true);
   });
 
   test("binary file does not contribute to totalInsertions/totalDeletions", async () => {
@@ -262,8 +261,8 @@ describe("DiffCollector.collect() — binary files", () => {
     ));
     const result = await collector.collect();
 
-    expect(result.summary.totalInsertions).toBe(5);
-    expect(result.summary.totalDeletions).toBe(3);
+    expect(result.totalInsertions).toBe(5);
+    expect(result.totalDeletions).toBe(3);
   });
 
   test("binary file with only '-' in insertions column is detected as binary", async () => {
@@ -275,7 +274,7 @@ describe("DiffCollector.collect() — binary files", () => {
     ));
     const result = await collector.collect();
 
-    expect(result.summary.files[0]!.isBinary).toBe(true);
+    expect(result.files[0]!.isBinary).toBe(true);
   });
 });
 
@@ -292,7 +291,7 @@ describe("DiffCollector.collect() — submodule files", () => {
     ));
     const result = await collector.collect();
 
-    const file = result.summary.files[0]!;
+    const file = result.files[0]!;
     expect(file.isSubmodule).toBe(true);
     expect(file.insertions).toBeNull();
     expect(file.deletions).toBeNull();
@@ -306,7 +305,7 @@ describe("DiffCollector.collect() — submodule files", () => {
     ));
     const result = await collector.collect();
 
-    expect(result.summary.hasSubmodules).toBe(true);
+    expect(result.hasSubmodules).toBe(true);
   });
 
   test("added submodule (oldMode=000000, newMode=160000) is detected", async () => {
@@ -317,7 +316,7 @@ describe("DiffCollector.collect() — submodule files", () => {
     ));
     const result = await collector.collect();
 
-    expect(result.summary.files[0]!.isSubmodule).toBe(true);
+    expect(result.files[0]!.isSubmodule).toBe(true);
   });
 
   test("deleted submodule (oldMode=160000, newMode=000000) is detected", async () => {
@@ -328,7 +327,7 @@ describe("DiffCollector.collect() — submodule files", () => {
     ));
     const result = await collector.collect();
 
-    expect(result.summary.files[0]!.isSubmodule).toBe(true);
+    expect(result.files[0]!.isSubmodule).toBe(true);
   });
 
   test("renamed submodule: isSubmodule=true using the new (last) path from raw output", async () => {
@@ -339,7 +338,7 @@ describe("DiffCollector.collect() — submodule files", () => {
     ));
     const result = await collector.collect();
 
-    const file = result.summary.files[0]!;
+    const file = result.files[0]!;
     expect(file.isSubmodule).toBe(true);
     expect(file.path).toBe("new-sub");
   });
@@ -352,7 +351,7 @@ describe("DiffCollector.collect() — submodule files", () => {
     ));
     const result = await collector.collect();
 
-    expect(result.summary.files[0]!.isSubmodule).toBe(false);
+    expect(result.files[0]!.isSubmodule).toBe(false);
   });
 });
 
@@ -369,7 +368,7 @@ describe("DiffCollector.collect() — summary aggregation", () => {
     ));
     const result = await collector.collect();
 
-    expect(result.summary.totalFiles).toBe(3);
+    expect(result.totalFiles).toBe(3);
   });
 
   test("totalInsertions and totalDeletions are summed across all text files", async () => {
@@ -380,8 +379,8 @@ describe("DiffCollector.collect() — summary aggregation", () => {
     ));
     const result = await collector.collect();
 
-    expect(result.summary.totalInsertions).toBe(13);
-    expect(result.summary.totalDeletions).toBe(5);
+    expect(result.totalInsertions).toBe(13);
+    expect(result.totalDeletions).toBe(5);
   });
 
   test("hasBinaryFiles=false when no binary files are staged", async () => {
@@ -392,7 +391,7 @@ describe("DiffCollector.collect() — summary aggregation", () => {
     ));
     const result = await collector.collect();
 
-    expect(result.summary.hasBinaryFiles).toBe(false);
+    expect(result.hasBinaryFiles).toBe(false);
   });
 
   test("hasSubmodules=false when no submodules are staged", async () => {
@@ -403,7 +402,7 @@ describe("DiffCollector.collect() — summary aggregation", () => {
     ));
     const result = await collector.collect();
 
-    expect(result.summary.hasSubmodules).toBe(false);
+    expect(result.hasSubmodules).toBe(false);
   });
 
   test("diff field on every file is null after collect() (deferred loading)", async () => {
@@ -414,7 +413,7 @@ describe("DiffCollector.collect() — summary aggregation", () => {
     ));
     const result = await collector.collect();
 
-    for (const file of result.summary.files) {
+    for (const file of result.files) {
       expect(file.diff).toBeNull();
     }
   });
@@ -427,7 +426,7 @@ describe("DiffCollector.collect() — summary aggregation", () => {
     ));
     const result = await collector.collect();
 
-    const paths = result.summary.files.map((f) => f.path);
+    const paths = result.files.map((f) => f.path);
     expect(paths).toEqual(["first.ts", "second.ts", "third.ts"]);
   });
 });
@@ -600,7 +599,7 @@ describe("DiffCollector.collectDiff() — error handling", () => {
   test("re-throws GitError as-is", async () => {
     const original = new GitError({
       code: GitCode.COMMAND_FAILED,
-      message: "command failed",
+      message: "git diff failed",
     });
     const collector = new DiffCollector(makeRunner(original));
 
@@ -610,8 +609,8 @@ describe("DiffCollector.collectDiff() — error handling", () => {
     expect(caught).toBe(original);
   });
 
-  test("wraps non-GitError as GitError(COMMAND_FAILED) with cause", async () => {
-    const plain = new Error("I/O error");
+  test("wraps non-GitError as GitError(COMMAND_FAILED)", async () => {
+    const plain = new Error("network timeout");
     const collector = new DiffCollector(makeRunner(plain));
 
     let caught: unknown;
@@ -620,7 +619,6 @@ describe("DiffCollector.collectDiff() — error handling", () => {
     expect(caught).toBeInstanceOf(GitError);
     const e = caught as GitError;
     expect(e.code).toBe(GitCode.COMMAND_FAILED);
-    expect(e.cause).toBe(plain);
   });
 });
 
@@ -634,7 +632,7 @@ describe("DiffCollector — parseNameStatus edge cases", () => {
     const collector = new DiffCollector(collectRunner("A", "", ""));
     const result = await collector.collect();
 
-    expect(result.summary.files).toHaveLength(0);
+    expect(result.files).toHaveLength(0);
   });
 
   test("multiple entries are all parsed in declaration order", async () => {
@@ -645,11 +643,11 @@ describe("DiffCollector — parseNameStatus edge cases", () => {
     ));
     const result = await collector.collect();
 
-    expect(result.summary.files).toHaveLength(3);
-    expect(result.summary.files[0]!.changeType).toBe("added");
-    expect(result.summary.files[1]!.changeType).toBe("deleted");
-    expect(result.summary.files[2]!.changeType).toBe("renamed");
-    expect(result.summary.files[2]!.similarityScore).toBe(90);
+    expect(result.files).toHaveLength(3);
+    expect(result.files[0]!.changeType).toBe("added");
+    expect(result.files[1]!.changeType).toBe("deleted");
+    expect(result.files[2]!.changeType).toBe("renamed");
+    expect(result.files[2]!.similarityScore).toBe(90);
   });
 });
 
@@ -667,7 +665,7 @@ describe("DiffCollector — expandBracePath edge cases", () => {
     const result = await collector.collect();
 
     // Stats for "new.ts" were found via expanded key
-    const file = result.summary.files[0]!;
+    const file = result.files[0]!;
     expect(file.path).toBe("new.ts");
     expect(file.insertions).toBe(0);
     expect(file.deletions).toBe(0);
@@ -681,8 +679,8 @@ describe("DiffCollector — expandBracePath edge cases", () => {
     ));
     const result = await collector.collect();
 
-    expect(result.summary.files[0]!.insertions).toBe(2);
-    expect(result.summary.files[0]!.deletions).toBe(1);
+    expect(result.files[0]!.insertions).toBe(2);
+    expect(result.files[0]!.deletions).toBe(1);
   });
 
   test("prefix+suffix rename: src/{foo => bar}/index.ts expands to src/bar/index.ts", async () => {
@@ -693,10 +691,38 @@ describe("DiffCollector — expandBracePath edge cases", () => {
     ));
     const result = await collector.collect();
 
-    const file = result.summary.files[0]!;
+    const file = result.files[0]!;
     expect(file.path).toBe("src/bar/index.ts");
     expect(file.insertions).toBe(4);
     expect(file.deletions).toBe(2);
+  });
+
+  test("empty right side {utils/ => }: src/{utils/ => }helper.ts expands to src/helper.ts", async () => {
+    const collector = new DiffCollector(collectRunner(
+      "R100\0src/utils/helper.ts\0src/helper.ts",
+      "0\t0\tsrc/{utils/ => }helper.ts",
+      "",
+    ));
+    const result = await collector.collect();
+
+    const file = result.files[0]!;
+    expect(file.path).toBe("src/helper.ts");
+    expect(file.insertions).toBe(0);
+    expect(file.deletions).toBe(0);
+  });
+
+  test("empty left side { => utils/}: src/{ => utils/}helper.ts expands to src/utils/helper.ts", async () => {
+    const collector = new DiffCollector(collectRunner(
+      "R100\0src/helper.ts\0src/utils/helper.ts",
+      "0\t0\tsrc/{ => utils/}helper.ts",
+      "",
+    ));
+    const result = await collector.collect();
+
+    const file = result.files[0]!;
+    expect(file.path).toBe("src/utils/helper.ts");
+    expect(file.insertions).toBe(0);
+    expect(file.deletions).toBe(0);
   });
 });
 
@@ -714,7 +740,7 @@ describe("DiffCollector — parseSubmodulePaths edge cases", () => {
     ));
     const result = await collector.collect();
 
-    expect(result.summary.files[0]!.isSubmodule).toBe(true);
+    expect(result.files[0]!.isSubmodule).toBe(true);
   });
 
   test("line with no tab separator is ignored", async () => {
@@ -726,7 +752,7 @@ describe("DiffCollector — parseSubmodulePaths edge cases", () => {
     ));
     const result = await collector.collect();
 
-    expect(result.summary.files[0]!.isSubmodule).toBe(false);
+    expect(result.files[0]!.isSubmodule).toBe(false);
   });
 
   test("empty raw output: no submodule detected", async () => {
@@ -737,7 +763,7 @@ describe("DiffCollector — parseSubmodulePaths edge cases", () => {
     ));
     const result = await collector.collect();
 
-    expect(result.summary.files[0]!.isSubmodule).toBe(false);
+    expect(result.files[0]!.isSubmodule).toBe(false);
   });
 
   test("meta section with fewer than 2 space-parts is skipped", async () => {
@@ -750,6 +776,6 @@ describe("DiffCollector — parseSubmodulePaths edge cases", () => {
     ));
     const result = await collector.collect();
 
-    expect(result.summary.files[0]!.isSubmodule).toBe(false);
+    expect(result.files[0]!.isSubmodule).toBe(false);
   });
 });
