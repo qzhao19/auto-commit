@@ -99,11 +99,10 @@ describe("DiffCollector e2e", () => {
 
       const result = await makeCollector().collect();
 
-      expect(result.success).toBe(true);
-      expect(result.summary.totalFiles).toBe(0);
-      expect(result.summary.totalInsertions).toBe(0);
-      expect(result.summary.totalDeletions).toBe(0);
-      expect(result.summary.files).toHaveLength(0);
+      expect(result.totalFiles).toBe(0);
+      expect(result.totalInsertions).toBe(0);
+      expect(result.totalDeletions).toBe(0);
+      expect(result.files).toHaveLength(0);
     });
 
     test("hasBinaryFiles and hasSubmodules are false on an empty staging area", async () => {
@@ -112,8 +111,8 @@ describe("DiffCollector e2e", () => {
 
       const result = await makeCollector().collect();
 
-      expect(result.summary.hasBinaryFiles).toBe(false);
-      expect(result.summary.hasSubmodules).toBe(false);
+      expect(result.hasBinaryFiles).toBe(false);
+      expect(result.hasSubmodules).toBe(false);
     });
   });
 
@@ -126,8 +125,8 @@ describe("DiffCollector e2e", () => {
 
       const result = await makeCollector().collect();
 
-      expect(result.summary.totalFiles).toBe(1);
-      const file = result.summary.files[0]!;
+      expect(result.totalFiles).toBe(1);
+      const file = result.files[0]!;
       expect(file.path).toBe("src/index.ts");
       expect(file.changeType).toBe("added");
       expect(file.oldPath).toBeNull();
@@ -140,7 +139,7 @@ describe("DiffCollector e2e", () => {
 
       const result = await makeCollector().collect();
 
-      const file = result.summary.files[0]!;
+      const file = result.files[0]!;
       expect(file.insertions).toBe(3);
       expect(file.deletions).toBe(0);
     });
@@ -152,8 +151,8 @@ describe("DiffCollector e2e", () => {
 
       const result = await makeCollector().collect();
 
-      expect(result.summary.totalFiles).toBe(2);
-      expect(result.summary.totalInsertions).toBe(3);
+      expect(result.totalFiles).toBe(2);
+      expect(result.totalInsertions).toBe(3);
     });
 
     test("diff field is null in collect() result (deferred loading)", async () => {
@@ -162,7 +161,7 @@ describe("DiffCollector e2e", () => {
 
       const result = await makeCollector().collect();
 
-      expect(result.summary.files[0]!.diff).toBeNull();
+      expect(result.files[0]!.diff).toBeNull();
     });
   });
 
@@ -177,7 +176,7 @@ describe("DiffCollector e2e", () => {
 
       const result = await makeCollector().collect();
 
-      const file = result.summary.files[0]!;
+      const file = result.files[0]!;
       expect(file.changeType).toBe("modified");
       expect(file.insertions).toBe(2);
       expect(file.deletions).toBe(1);
@@ -190,7 +189,7 @@ describe("DiffCollector e2e", () => {
 
       const result = await makeCollector().collect();
 
-      const file = result.summary.files[0]!;
+      const file = result.files[0]!;
       expect(file.isBinary).toBe(false);
       expect(file.isSubmodule).toBe(false);
     });
@@ -206,7 +205,7 @@ describe("DiffCollector e2e", () => {
 
       const result = await makeCollector().collect();
 
-      const file = result.summary.files[0]!;
+      const file = result.files[0]!;
       expect(file.changeType).toBe("deleted");
       expect(file.insertions).toBe(0);
       expect(file.deletions).toBe(3);
@@ -219,8 +218,8 @@ describe("DiffCollector e2e", () => {
 
       const result = await makeCollector().collect();
 
-      expect(result.summary.totalInsertions).toBe(0);
-      expect(result.summary.totalDeletions).toBe(2);
+      expect(result.totalInsertions).toBe(0);
+      expect(result.totalDeletions).toBe(2);
     });
   });
 
@@ -234,7 +233,7 @@ describe("DiffCollector e2e", () => {
 
       const result = await makeCollector().collect();
 
-      const file = result.summary.files[0]!;
+      const file = result.files[0]!;
       expect(file.changeType).toBe("renamed");
       expect(file.path).toBe("new-name.ts");
       expect(file.oldPath).toBe("old-name.ts");
@@ -247,7 +246,7 @@ describe("DiffCollector e2e", () => {
 
       const result = await makeCollector().collect();
 
-      expect(result.summary.files[0]!.similarityScore).toBe(100);
+      expect(result.files[0]!.similarityScore).toBe(100);
     });
 
     test("renamed file across directories: path and oldPath are full relative paths", async () => {
@@ -258,7 +257,7 @@ describe("DiffCollector e2e", () => {
 
       const result = await makeCollector().collect();
 
-      const file = result.summary.files[0]!;
+      const file = result.files[0]!;
       expect(file.path).toBe("lib/new.ts");
       expect(file.oldPath).toBe("src/old.ts");
     });
@@ -279,9 +278,9 @@ describe("DiffCollector e2e", () => {
 
       const result = await makeCollector().collect();
 
-      expect(result.summary.totalFiles).toBe(3);
-      expect(result.summary.totalInsertions).toBe(3);   // 2 + 1 + 0
-      expect(result.summary.totalDeletions).toBe(4);    // 0 + 1 + 3
+      expect(result.totalFiles).toBe(3);
+      expect(result.totalInsertions).toBe(3);   // 2 + 1 + 0
+      expect(result.totalDeletions).toBe(4);    // 0 + 1 + 3
     });
 
     test("files array preserves the same set of paths as staged", async () => {
@@ -294,7 +293,7 @@ describe("DiffCollector e2e", () => {
 
       const result = await makeCollector().collect();
 
-      const paths = result.summary.files.map((f) => f.path).sort();
+      const paths = result.files.map((f) => f.path).sort();
       expect(paths).toEqual(["a.ts", "b.ts", "c.ts"]);
     });
   });
@@ -369,7 +368,7 @@ describe("DiffCollector e2e", () => {
 
       const collector = makeCollector();
       const summary = await collector.collect();
-      const paths = summary.summary.files.map((f) => f.path);
+      const paths = summary.files.map((f) => f.path);
       const diffs = await collector.collectDiff(paths);
 
       expect(diffs.size).toBe(paths.length);
@@ -391,7 +390,7 @@ describe("DiffCollector e2e", () => {
       const summary = await collector.collect();
       const diffs = await collector.collectDiff(["count.ts"]);
 
-      const fileInfo = summary.summary.files[0]!;
+      const fileInfo = summary.files[0]!;
       const diff = diffs.get("count.ts")!;
 
       expect(fileInfo.insertions).toBe(2);
