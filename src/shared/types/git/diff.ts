@@ -30,7 +30,7 @@ export interface StagedFileChange {
 }
 
 /**
- * Aggregate view across all staged files.
+ * Aggregate view across all staged files. Returned by DiffCollector.collect() on success.
  * Phase 3 reads this to decide the LLM transmission strategy before
  * requesting any full diff content.
  */
@@ -43,14 +43,5 @@ export interface StagedDiffSummary {
   files: StagedFileChange[];
 }
 
-
-/**
- * Returned by DiffCollector.collect() on success.
- * Mirrors the Result shape used by RepoChecker and StateDetector.
- */
-export interface DiffCollectResult {
-  success: true;
-  summary: StagedDiffSummary;
-}
 
 
