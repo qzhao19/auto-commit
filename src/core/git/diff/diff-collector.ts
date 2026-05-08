@@ -3,7 +3,6 @@ import {
   type StagedChangeType,
   type StagedFileChange,
   type StagedDiffSummary,
-  type DiffCollectResult,
 } from "../../../shared/types/index";
 import { type GitRunner } from "../runner/index";
 
@@ -18,7 +17,7 @@ export class DiffCollector {
    * Collects the staged diff summary in three parallel git commands.
    * Full diff text is NOT loaded — call collectDiff() on demand.
    */
-  public async collect(): Promise<DiffCollectResult> {
+  public async collect(): Promise<StagedDiffSummary> {
     try {
       const [nameStatusResult, numstatResult, rawResult] = await Promise.all([
         // NUL-delimited: authoritative path/type/similarity
@@ -52,7 +51,7 @@ export class DiffCollector {
         };
       });
 
-      return { success: true, summary: this.buildSummary(files) };
+      return this.buildSummary(files);
 
     } catch (error) {
       if (error instanceof GitError) throw error;
@@ -175,13 +174,13 @@ export class DiffCollector {
     for (const line of raw.split("\n")) {
       if (!line) continue;
 
-      const tabIdx1 = line.indexOf("\t");
-      const tabIdx2 = line.indexOf("\t", tabIdx1 + 1);
-      if (tabIdx1 === -1 || tabIdx2 === -1) continue;
+      const tabIndex1 = line.indexOf("\t");
+      const tabIndex2 = line.indexOf("\t", tabIndex1 + 1);
+      if (tabIndex1 === -1 || tabIndex2 === -1) continue;
 
-      const insStr  = line.slice(0, tabIdx1);
-      const delStr  = line.slice(tabIdx1 + 1, tabIdx2);
-      const rawPath = line.slice(tabIdx2 + 1);
+      const insStr  = line.slice(0, tabIndex1);
+      const delStr  = line.slice(tabIndex1 + 1, tabIndex2);
+      const rawPath = line.slice(tabIndex2 + 1);
 
       const isBinary  = insStr === "-" || delStr === "-";
       const insertions = isBinary ? null : parseInt(insStr, 10);
@@ -202,10 +201,12 @@ export class DiffCollector {
    * Examples:
    *   "{old.ts => new.ts}"           → oldPath="old.ts",         newPath="new.ts"
    *   "src/{lib => utils}/index.ts"  → oldPath="src/lib/index.ts", newPath="src/utils/index.ts"
+   *   "src/{utils/ => }helper.ts".   → oldPath="src/utils/helper.ts", newPath="src/helper.ts"
+   *   "src/{ => utils/}helper.ts"    → oldPath="src/helper.ts", newPath="src/utils/helper.ts"
    *   "plain/file.ts"                → oldPath=newPath="plain/file.ts"  (no rename)
    */
   private expandBracePath(raw: string): { oldPath: string; newPath: string } {
-    const match = /^(.*?)\{(.+?) => (.+?)\}(.*)$/.exec(raw);
+    const match = /^(.*?)\{(.*?) => (.*?)\}(.*)$/.exec(raw);
     if (!match) return { oldPath: raw, newPath: raw };
 
     const prefix  = match[1] ?? "";
