@@ -1,66 +1,77 @@
-import { type FileClassificationResult } from "./classify";
-import { type StagedChangeType } from "./diff";
+import { type ClassifiedFile } from "./classify";
 
-export interface DiffBudgetConfig {
-  readonly maxPromptTokens: number;
-  readonly softTokenBudget: number;
+/**
+ * - maxTotalTokens: token ceiling for the diff section
+ * - maxLinesPerFile: files with more total changed lines than 
+ *                    this are "oversized" and always degraded. 
+ * - tokensPerLine: tokens-per-changed-line multiplier used for estimation
+ * - tokensPerFileOverhead: Fixed per-file overhead 
+ */
+export interface BudgetThresholds {
+  readonly maxTotalTokens: number;
+  readonly maxLinesPerFile: number;
+  readonly tokensPerLine: number;
+  readonly tokensPerFileOverhead: number;
 }
 
-export const DEFAULT_DIFF_BUDGET: DiffBudgetConfig = {
-  maxPromptTokens: 20_000,
-  softTokenBudget: 16_000,
-};
+// Whether a file will receive a full diff fetch or be handled in degraded mode.
+export type FileDiffMode = "full" | "degraded";
 
-export interface DiffBudgetEstimate {
-  readonly estimatedTokens: number;
-  readonly estimatedChars: number;
-  readonly oversized: boolean;
-  readonly textFileCount: number;
-  readonly totalChangeLines: number;
+/**
+ * Why a file was placed in degraded mode:
+ *   - "noise"           → noise file (binary / submodule / lfs-pointer); no diff to pull
+ *   - "oversized"       → single-file changed lines exceed maxLinesPerFile
+ *   - "budget-exceeded" → file would push the cumulative token estimate over maxTotalTokens
+ */
+export type DegradationReason = "noise" | "oversized" | "budget-exceeded";
+
+/**
+ * - estimatedTokens: Coarse estimated tokens for this file's diff contribution.
+ *                    Null for degraded files where no diff will be fetched.
+ */
+export interface FileDiffPlan {
+  readonly file: ClassifiedFile;
+  readonly mode: FileDiffMode;
+  readonly degradationReason?: DegradationReason;
+  readonly estimatedTokens: number | null;
 }
 
-export type DiffSelectionMode = "full" | "trimmed" | "summary-only";
-
-export interface DiffSelectionPlan {
-  readonly mode: DiffSelectionMode;
-  readonly estimate: DiffBudgetEstimate;
-  readonly classification: FileClassificationResult;
-  readonly fullDiffPaths: readonly string[];
-  readonly summarizedTextPaths: readonly string[];
+/**
+ * Summary of the coarse estimation pass, computed before any git diff calls.
+ * Exposes all four estimation inputs from the spec:
+ *   - file count / content file count
+ *   - total changed lines
+ *   - renamed-with-no-content-change file count
+ *   - max changed lines in a single file
+ */
+export interface BudgetEstimate {
+  readonly totalFiles: number;
+  readonly contentFiles: number;
+  readonly noiseFiles: number;
+  /** Renamed files whose insertions and deletions are both zero. */
+  readonly renamedNoContentChangeCount: number;
+  /** Largest changed-line count (insertions + deletions) across all content files. */
+  readonly maxSingleFileLines: number;
+  /** Sum of insertions + deletions across all content files. */
+  readonly totalChangedLines: number;
+  /** Estimated tokens if every content file received a full diff. */
+  readonly estimatedTokensIfFull: number;
+  /** Configured token budget ceiling (from BudgetThresholds.maxTotalTokens). */
+  readonly tokenBudget: number;
+  /** True when estimatedTokensIfFull ≤ tokenBudget. */
+  readonly isWithinBudget: boolean;
 }
 
-export type FileLLMPayload =
-  | {
-      kind: "diff";
-      path: string;
-      oldPath: string | null;
-      changeType: StagedChangeType;
-      insertions: number | null;
-      deletions: number | null;
-      diff: string;
-    }
-  | {
-      kind: "stats";
-      path: string;
-      oldPath: string | null;
-      changeType: StagedChangeType;
-      insertions: number | null;
-      deletions: number | null;
-      annotation: string | null;
-    }
-  | {
-      kind: "binary";
-      path: string;
-      changeType: StagedChangeType;
-    }
-  | {
-      kind: "submodule";
-      path: string;
-      changeType: StagedChangeType;
-    };
-
-export interface DiffBuildResult {
-  readonly plan: DiffSelectionPlan;
-  readonly payloads: readonly FileLLMPayload[];
-  readonly totalDiffChars: number;
+/**
+ * Planning result
+ * - estimate: aggregate metrics from the coarse estimation pass
+ * - plans: per-file plan, in the same order as FileClassificationResult.files
+ * - fullDiffCount: number of files that will receive a full diff fetch
+ * - degradedCount: number of files that will be handled in degraded mode
+ */
+export interface DiffPlanResult {
+  readonly estimate: BudgetEstimate;
+  readonly plans: readonly FileDiffPlan[];
+  readonly fullDiffCount: number;
+  readonly degradedCount: number;
 }
