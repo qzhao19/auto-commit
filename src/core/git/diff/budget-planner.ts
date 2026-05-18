@@ -60,10 +60,15 @@ export class BudgetPlanner {
     });
 
     // Every file (noise or not) contributes at least one overhead slot in the prompt.
+    // Any filenames, modification types, etc., that are ultimately added to the prompt 
+    // and seen by the LLM will be fixed as the cost of `tokensPerFileOverhead`.
     const reservedMetadataTokens = classified.files.length * tokensPerFileOverhead;
     const estimatedTokensIfFull  = reservedMetadataTokens + 
       estimates.reduce((sum, estimate) => sum + estimate.diffTokens, 0);
     const isWithinBudget = estimatedTokensIfFull <= maxTotalTokens;
+
+    // Excluding this absolutely fixed overhead (reserved tokens), 
+    // how many tokens can we allocate during the content processing
     const availableDiffBudget = Math.max(0, maxTotalTokens - reservedMetadataTokens);
 
     // ── Step 3 / 4: determine mode for every file, keyed by path ──
@@ -90,6 +95,7 @@ export class BudgetPlanner {
       // 4a: oversized files
       const normal: FileEstimate[] = [];
       for (const estimate of estimates) {
+        // If greater than a specific number of lines
         if (estimate.lines > maxLinesPerFile) {
           modeByPath.set(estimate.path, {
             file: estimate.file,
@@ -103,6 +109,7 @@ export class BudgetPlanner {
       }
 
       // 4b: check remaining diff budget after oversized removal
+      // After excluding the largest files, recalculate the remaining costs.
       const normalDiffTotal = normal.reduce((sum, estimate) => sum + estimate.diffTokens, 0);
       if (normalDiffTotal <= availableDiffBudget) {
         for (const estimate of normal) {
