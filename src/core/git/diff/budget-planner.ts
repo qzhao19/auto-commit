@@ -24,20 +24,6 @@ export class BudgetPlanner {
     this.thresholds = thresholds;
   }
 
-  /**
-   * Determines the diff-fetch mode (full / degraded) for every classified file
-   * without issuing any git commands.
-   *
-   * Algorithm:
-   *   1. Noise files → degraded / "noise" unconditionally.
-   *   2. Compute per-file coarse token estimates for all content files.
-   *   3. If total ≤ maxTotalTokens → all content files get full diff.
-   *   4. Otherwise:
-   *      a. Files with changedLines > maxLinesPerFile → degraded / "oversized".
-   *      b. If remaining total ≤ maxTotalTokens → remaining files get full diff.
-   *      c. Otherwise → sort remaining by tokens asc (maximise file count),
-   *         fill greedily, overflow → degraded / "budget-exceeded".
-   */
   public plan(classified: FileClassificationResult): DiffPlanResult {
     const { maxTotalTokens, maxLinesPerFile, tokensPerLine, tokensPerFileOverhead } = this.thresholds;
 
