@@ -688,6 +688,7 @@ describe("BudgetPlanner e2e — real-world commit patterns (production threshold
   test("refactor: renamed source files (no content change) → renamedNoContentChangeCount > 0, all full", async () => {
     await commitFile(repoDir, "src/utils/helper.ts", lines(5));
     await commitFile(repoDir, "src/utils/parser.ts", lines(5));
+    await mkdir(join(repoDir, "src", "lib"), { recursive: true });
     await git(["mv", "src/utils/helper.ts", "src/lib/helper.ts"], repoDir);
     await git(["mv", "src/utils/parser.ts", "src/lib/parser.ts"], repoDir);
 
