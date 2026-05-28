@@ -2,9 +2,8 @@ import type {
   LLMMessage,
   AssembledPrompt,
   PromptAssemblyInput,
-} from "../../../shared/types/llm/prompt";
-import type { GitInternalOpState } from "../../../shared/types/git/context";
-import type { FileDiffPlan } from "../../../shared/types/git/planning";
+} from "../../../shared/types/llm/index";
+import type { GitInternalOpState, FileDiffPlan } from "../../../shared/types/git/index";
 
 /** Rough tokens-per-character ratio used for budget estimation. */
 const CHARS_PER_TOKEN = 4;
