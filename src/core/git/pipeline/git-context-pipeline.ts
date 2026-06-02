@@ -73,6 +73,7 @@ export class GitContextPipeline {
     return {
       route: "clean",
       repoContext,
+      gitState: { status: "clean" },
       diffSummary,
       diffPlan,
       diffTexts,
