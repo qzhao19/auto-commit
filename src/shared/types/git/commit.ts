@@ -1,4 +1,4 @@
-import type { GitRepoPrecheckContext } from "./context";
+import type { GitRepoPrecheckContext, GitInternalOpState } from "./context";
 import type { StagedDiffSummary } from "./diff";
 import type { DiffPlanResult } from "./planning";
 
@@ -20,6 +20,7 @@ export type GitPipelineResult =
   | {
       readonly route: "clean";
       readonly repoContext: GitRepoPrecheckContext;
+      readonly gitState: GitInternalOpState;
       readonly diffSummary: StagedDiffSummary;
       readonly diffPlan: DiffPlanResult;
       readonly diffTexts: ReadonlyMap<string, string>;
