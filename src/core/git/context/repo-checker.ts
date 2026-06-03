@@ -15,11 +15,6 @@ export class RepoChecker {
     this.runner = runner;
   }
 
-  /**
-   * Execute all prechecks in Phase 0; if successful, return a `GitRepoPrecheckResult`.
-   * If a fatal issue is encountered in steps 1, 2, or 3, throw a `GitError` directly; do not return a result.
-   * If a detached HEAD is encountered in step 6, log a `console.warn` but do not interrupt the process.
-   */
   public async check(): Promise<GitRepoPrecheckResult> {
     const completedSteps: GitPrecheckStep[] = [];
     let currentStep: GitPrecheckStep = "is-repo";
