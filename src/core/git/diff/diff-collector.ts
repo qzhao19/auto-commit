@@ -13,10 +13,6 @@ export class DiffCollector {
     this.runner = runner;
   }
 
-  /**
-   * Collects the staged diff summary in three parallel git commands.
-   * Full diff text is NOT loaded — call collectDiff() on demand.
-   */
   public async collect(): Promise<StagedDiffSummary> {
     try {
       const [nameStatusResult, numstatResult, rawResult] = await Promise.all([
