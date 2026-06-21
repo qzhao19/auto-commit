@@ -6,8 +6,10 @@ export type GitPrecheckStep =
   | "is-repo"
   | "lock-check"
   | "staging-check"
+  | "get-worktree"
   | "initial-commit-check"
-  | "detached-head-check";
+  | "detached-head-check"
+  | "complete";
 
 export interface GitRepoPrecheckContext {
   gitDir: string;
@@ -32,7 +34,8 @@ export type GitStateDetectStep =
   | "cherry-pick-detect"  // Detect cherry-pick state by reading .git/CHERRY_PICK_HEAD
   | "revert-detect"       // Detect revert state by reading .git/REVERT_HEAD
   | "rebase-detect"       // Detect rebase state by checking .git/rebase-merge or .git/rebase-apply
-  | "bisect-detect";      // Detect bisect state by reading .git/BISECT_LOG (hard exit if found)
+  | "bisect-detect"       // Detect bisect state by reading .git/BISECT_LOG (hard exit if found)
+  | "complete";           // Sentinel: all steps finished, no special state found
 
 /**
  * Current Git internal operation state.
@@ -53,7 +56,7 @@ export type GitInternalOpState =
   | {
       status: "cherry-pick";
       cherryPickHead: string;       // Commit hash from CHERRY_PICK_HEAD file
-      originalTitle: string | null; // Original commit title from the cherry-picked commit 
+      originalTitle: string | null; // Original commit title from the cherry-picked commit
     }
   | {
       status: "revert";
