@@ -6,10 +6,8 @@ export type GitPrecheckStep =
   | "is-repo"
   | "lock-check"
   | "staging-check"
-  | "get-worktree"
   | "initial-commit-check"
-  | "detached-head-check"
-  | "complete";
+  | "detached-head-check";
 
 export interface GitRepoPrecheckContext {
   gitDir: string;
@@ -34,8 +32,7 @@ export type GitStateDetectStep =
   | "cherry-pick-detect"  // Detect cherry-pick state by reading .git/CHERRY_PICK_HEAD
   | "revert-detect"       // Detect revert state by reading .git/REVERT_HEAD
   | "rebase-detect"       // Detect rebase state by checking .git/rebase-merge or .git/rebase-apply
-  | "bisect-detect"       // Detect bisect state by reading .git/BISECT_LOG (hard exit if found)
-  | "complete";           // Sentinel: all steps finished, no special state found
+  | "bisect-detect";      // Detect bisect state by reading .git/BISECT_LOG (hard exit if found)
 
 /**
  * Current Git internal operation state.
