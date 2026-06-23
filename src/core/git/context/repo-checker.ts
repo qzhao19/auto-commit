@@ -33,7 +33,7 @@ export class RepoChecker {
       // 1. Check if it is a Git repository，and get the repository root path
       const { gitDir, workTree } = await runPrecheckStep(
         "is-repo",
-        () => this.checkIsRepo(),
+        () => this.resolveRepoPaths(),
       );
 
       // 2. Check if other Git processes are occupying index.lock
@@ -90,7 +90,7 @@ export class RepoChecker {
 
   // ── 1. Determine whether it is a Git repo & Bare repo, get the root path of the repository──
 
-  private async checkIsRepo(): Promise<{ gitDir: string, workTree: string }> {
+  private async resolveRepoPaths(): Promise<{ gitDir: string, workTree: string }> {
     const result: GitRunResult = await this.runner.run(
       ["rev-parse", "--git-dir", "--is-bare-repository"],
       { allowedExitCodes: [0, 128] },
@@ -106,6 +106,15 @@ export class RepoChecker {
 
     const [rawGitDir, isBareRepo] = result.stdout.split("\n");
 
+    //  git should never return empty for --git-dir on exit 0
+    if (!rawGitDir) {
+      throw new GitError({
+        code: GitCode.COMMAND_FAILED,
+        message: "git rev-parse --git-dir returned empty output ",
+        details: { cwd: result.cwd, rawStdout: result.stdout },
+      });
+    }
+
     if (isBareRepo === "true") {
       throw new GitError({
         code: GitCode.BARE_REPO_UNSUPPORTED,
@@ -115,9 +124,9 @@ export class RepoChecker {
 
     // --git-dir may return relative paths within the worktree or submodule; 
     // convert them all to absolute paths
-    const gitDir: string = rawGitDir!.startsWith("/") 
-      ? rawGitDir! 
-      : join(result.cwd, rawGitDir!);
+    const gitDir: string = rawGitDir.startsWith("/") 
+      ? rawGitDir 
+      : join(result.cwd, rawGitDir);
 
     const workTreeResult = await this.runner.run(["rev-parse", "--show-toplevel"]);
 
