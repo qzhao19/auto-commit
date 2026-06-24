@@ -67,7 +67,7 @@ export class StateDetector {
 
       // All checks passed with no special state found
       const cleanState: GitInternalOpState = { status: "clean" };
-      return { finalStep: currentStep, completedSteps, state: cleanState };
+      return { finalStep: "complete", completedSteps, state: cleanState };
 
     } catch (error) {
       const stepDetails = {
