@@ -7,7 +7,8 @@ export type GitPrecheckStep =
   | "lock-check"
   | "staging-check"
   | "initial-commit-check"
-  | "detached-head-check";
+  | "detached-head-check"
+  | "complete";
 
 export interface GitRepoPrecheckContext {
   gitDir: string;
@@ -27,38 +28,38 @@ export interface GitRepoPrecheckResult {
  * Step identifiers for Phase 1: Git internal operation state detection.
  */
 export type GitStateDetectStep =
-  | "merge-detect"        // Detect if in merge state by reading .git/MERGE_HEAD
-  | "squash-detect"       // Detect squash-merge state by reading .git/SQUASH_MSG
-  | "cherry-pick-detect"  // Detect cherry-pick state by reading .git/CHERRY_PICK_HEAD
-  | "revert-detect"       // Detect revert state by reading .git/REVERT_HEAD
-  | "rebase-detect"       // Detect rebase state by checking .git/rebase-merge or .git/rebase-apply
-  | "bisect-detect"     // Detect bisect state by reading .git/BISECT_LOG (hard exit if found)
+  | "merge-detect" // Detect if in merge state by reading .git/MERGE_HEAD
+  | "squash-detect" // Detect squash-merge state by reading .git/SQUASH_MSG
+  | "cherry-pick-detect" // Detect cherry-pick state by reading .git/CHERRY_PICK_HEAD
+  | "revert-detect" // Detect revert state by reading .git/REVERT_HEAD
+  | "rebase-detect" // Detect rebase state by checking .git/rebase-merge or .git/rebase-apply
+  | "bisect-detect" // Detect bisect state by reading .git/BISECT_LOG (hard exit if found)
   | "complete";
-  
+
 /**
  * Current Git internal operation state.
  */
 export type GitInternalOpState =
   | {
-      status: "clean";             // Normal state: no special Git operations in progress.
+      status: "clean"; // Normal state: no special Git operations in progress.
     }
   | {
       status: "merge";
-      mergeHead: string;           // Full commit hash from MERGE_HEAD file
+      mergeHead: string; // Full commit hash from MERGE_HEAD file
       mergeMessage: string | null; // Content of MERGE_MSG file, used for merge commit messages
     }
   | {
       status: "squash-merge";
-      squashMessage: string;       // Full content of SQUASH_MSG file
+      squashMessage: string; // Full content of SQUASH_MSG file
     }
   | {
       status: "cherry-pick";
-      cherryPickHead: string;       // Commit hash from CHERRY_PICK_HEAD file
+      cherryPickHead: string; // Commit hash from CHERRY_PICK_HEAD file
       originalTitle: string | null; // Original commit title from the cherry-picked commit
     }
   | {
       status: "revert";
-      revertHead: string;           // Commit hash from REVERT_HEAD file
+      revertHead: string; // Commit hash from REVERT_HEAD file
       originalTitle: string | null; // Original commit title from the reverted commit
     }
   | {
