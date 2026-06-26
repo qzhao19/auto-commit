@@ -43,7 +43,10 @@ export class RepoChecker {
       await runPrecheckStep("staging-check", () => this.resolveStagingState());
 
       // 4. Check if this is the initial commit
-      const isInitialCommit = await runPrecheckStep("initial-commit-check", () => this.detectInitialCommit());
+      const isInitialCommit = await runPrecheckStep(
+        "initial-commit-check",
+        () => this.detectInitialCommit()
+      );
 
       // 5. Check if HEAD is detached (warn but do not interrupt)
       const { isDetachedHead, currentBranch } = await runPrecheckStep(
@@ -60,7 +63,7 @@ export class RepoChecker {
       };
 
       return {
-        finalStep: currentStep,
+        finalStep: "complete",
         completedSteps,
         context,
       };
