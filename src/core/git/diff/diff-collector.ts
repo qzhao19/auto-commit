@@ -31,8 +31,9 @@ export class DiffCollector {
 
       const files: StagedFileChange[] = nameStatusEntries.map((entry) => {
         const stats = numstatMap.get(entry.path);
-        const isBinary = stats?.isBinary ?? false;
+
         const isSubmodule = submodulePaths.has(entry.path);
+        const isBinary = !isSubmodule && (stats?.isBinary ?? false);
 
         return {
           path: entry.path,
@@ -230,7 +231,7 @@ export class DiffCollector {
     >();
     if (!raw) return map;
 
-    for (const line of raw.split("\n")) {
+    for (const line of raw.split(/\r?\n/)) {
       if (!line) continue;
 
       const tabIndex1 = line.indexOf("\t");
@@ -293,7 +294,7 @@ export class DiffCollector {
     const submodules = new Set<string>();
     if (!raw) return submodules;
 
-    for (const line of raw.split("\n")) {
+    for (const line of raw.split(/\r?\n/)) {
       if (!line.startsWith(":")) continue;
 
       const tabIdx = line.indexOf("\t");
@@ -335,8 +336,11 @@ export class DiffCollector {
 
     for (const section of sections) {
       if (!section.trim()) continue;
+      
+      // Extreme case:  indexOf return -1
+      const nlIdx = section.indexOf("\n");
+      const firstLine = nlIdx === -1 ? section : section.slice(0, nlIdx);
 
-      const firstLine = section.slice(0, section.indexOf("\n"));
       // "diff --git a/<oldpath> b/<newpath>" — use lastIndexOf to handle spaces
       const bIdx = firstLine.lastIndexOf(" b/");
       if (bIdx === -1) continue;
