@@ -31,9 +31,8 @@ export class RepoChecker {
 
     try {
       // 1. Check if it is a Git repository，and get the repository root path
-      const { gitDir, workTree } = await runPrecheckStep(
-        "is-repo",
-        () => this.resolveRepoPaths(),
+      const { gitDir, workTree } = await runPrecheckStep("is-repo", () =>
+        this.resolveRepoPaths(),
       );
 
       // 2. Check if other Git processes are occupying index.lock
@@ -45,7 +44,7 @@ export class RepoChecker {
       // 4. Check if this is the initial commit
       const isInitialCommit = await runPrecheckStep(
         "initial-commit-check",
-        () => this.detectInitialCommit()
+        () => this.detectInitialCommit(),
       );
 
       // 5. Check if HEAD is detached (warn but do not interrupt)
@@ -93,7 +92,10 @@ export class RepoChecker {
 
   // ── 1. Determine whether it is a Git repo & Bare repo, get the root path of the repository──
 
-  private async resolveRepoPaths(): Promise<{ gitDir: string, workTree: string }> {
+  private async resolveRepoPaths(): Promise<{
+    gitDir: string;
+    workTree: string;
+  }> {
     const result: GitRunResult = await this.runner.run(
       ["rev-parse", "--git-dir", "--is-bare-repository"],
       { allowedExitCodes: [0, 128] },
@@ -103,7 +105,7 @@ export class RepoChecker {
       throw new GitError({
         code: GitCode.NOT_A_REPO,
         message: "The current directory is not a Git repository",
-        details: { cwd: result.cwd, stderr: result.stderr }
+        details: { cwd: result.cwd, stderr: result.stderr },
       });
     }
 
@@ -121,21 +123,24 @@ export class RepoChecker {
     if (isBareRepo === "true") {
       throw new GitError({
         code: GitCode.BARE_REPO_UNSUPPORTED,
-        message: "Bare repositories are not supported. A working tree is required.",
+        message:
+          "Bare repositories are not supported. A working tree is required.",
       });
     }
 
-    // --git-dir may return relative paths within the worktree or submodule; 
+    // --git-dir may return relative paths within the worktree or submodule;
     // convert them all to absolute paths
-    const gitDir: string = rawGitDir.startsWith("/") 
-      ? rawGitDir 
+    const gitDir: string = rawGitDir.startsWith("/")
+      ? rawGitDir
       : join(result.cwd, rawGitDir);
 
-    const workTreeResult = await this.runner.run(["rev-parse", "--show-toplevel"]);
+    const workTreeResult = await this.runner.run([
+      "rev-parse",
+      "--show-toplevel",
+    ]);
 
-    return {gitDir, workTree: workTreeResult.stdout};
+    return { gitDir, workTree: workTreeResult.stdout };
   }
-
 
   // ── 2. Check if other Git processes are running ──
 
@@ -145,7 +150,8 @@ export class RepoChecker {
     if (await Bun.file(lockPath).exists()) {
       throw new GitError({
         code: GitCode.LOCK_FILE_EXISTS,
-        message: "Another Git process is currently running. Please try again later.",
+        message:
+          "Another Git process is currently running. Please try again later.",
         details: { lockPath },
       });
     }
@@ -172,10 +178,9 @@ export class RepoChecker {
     }
 
     // Check if there are any staged changes in the working directory
-    const workDir: GitRunResult = await this.runner.run(
-      ["diff", "--quiet"],
-      { allowedExitCodes: [0, 1] },
-    );
+    const workDir: GitRunResult = await this.runner.run(["diff", "--quiet"], {
+      allowedExitCodes: [0, 1],
+    });
 
     if (workDir.exitCode === 1) {
       // Get unstaged files for error throw
@@ -217,15 +222,14 @@ export class RepoChecker {
     isDetachedHead: boolean;
     currentBranch: string | null;
   }> {
-    const result = await this.runner.run(
-      ["symbolic-ref", "-q", "HEAD"],
-      { allowedExitCodes: [0, 1] },
-    );
+    const result = await this.runner.run(["symbolic-ref", "-q", "HEAD"], {
+      allowedExitCodes: [0, 1],
+    });
 
     if (result.exitCode !== 0) {
       console.warn(
         "[auto-commit] Warning: You are currently in the “Detached HEAD” state. " +
-        "This commit will not be part of any branch. Please confirm before continuing.",
+          "This commit will not be part of any branch. Please confirm before continuing.",
       );
       return { isDetachedHead: true, currentBranch: null };
     }

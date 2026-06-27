@@ -142,7 +142,17 @@ export class DiffCollector {
       case "M": return "modified";
       case "D": return "deleted";
       case "T": return "type-changed";
-      default:  return "modified";
+      case "R": // should be caught by the R/C branch in parseNameStatus
+      case "C":
+        console.warn(
+          `[auto-commit] Rename/copy status "${code}" reached toChangeType — `
+        );
+        return null;
+      default:
+        console.warn(
+          `[auto-commit] Unknown git status code: "${code}". `
+        );
+        return null;
     }
   }
 
