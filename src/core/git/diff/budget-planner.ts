@@ -25,37 +25,47 @@ export class BudgetPlanner {
   }
 
   public plan(classified: FileClassificationResult): DiffPlanResult {
-    const { maxTotalTokens, maxLinesPerFile, tokensPerLine, tokensPerFileOverhead } = this.thresholds;
+    const {
+      maxTotalTokens,
+      maxLinesPerFile,
+      tokensPerLine,
+      tokensPerFileOverhead,
+    } = this.thresholds;
 
     // ── Step 1: separate noise from content ──
-    const noiseFiles   = classified.files.filter(file => file.isNoise);
-    const contentFiles = classified.files.filter(file => !file.isNoise);
+    const noiseFiles = classified.files.filter((file) => file.isNoise);
+    const contentFiles = classified.files.filter((file) => !file.isNoise);
 
     // ── Step 2: per-file token estimates ──
-    const estimates: FileEstimate[] = contentFiles.map(file => {
+    const estimates: FileEstimate[] = contentFiles.map((file) => {
       const lines = (file.file.insertions ?? 0) + (file.file.deletions ?? 0);
       const diffTokens = lines * tokensPerLine;
       const fullTokens = diffTokens + tokensPerFileOverhead;
-      return { 
-        file, 
-        path: file.file.path, 
-        lines, 
-        diffTokens, 
-        fullTokens 
+      return {
+        file,
+        path: file.file.path,
+        lines,
+        diffTokens,
+        fullTokens,
       };
     });
 
     // Every file (noise or not) contributes at least one overhead slot in the prompt.
-    // Any filenames, modification types, etc., that are ultimately added to the prompt 
+    // Any filenames, modification types, etc., that are ultimately added to the prompt
     // and seen by the LLM will be fixed as the cost of `tokensPerFileOverhead`.
-    const reservedMetadataTokens = classified.files.length * tokensPerFileOverhead;
-    const estimatedTokensIfFull  = reservedMetadataTokens + 
+    const reservedMetadataTokens =
+      classified.files.length * tokensPerFileOverhead;
+    const estimatedTokensIfFull =
+      reservedMetadataTokens +
       estimates.reduce((sum, estimate) => sum + estimate.diffTokens, 0);
     const isWithinBudget = estimatedTokensIfFull <= maxTotalTokens;
 
-    // Excluding this absolutely fixed overhead (reserved tokens), 
+    // Excluding this absolutely fixed overhead (reserved tokens),
     // how many tokens can we allocate during the content processing
-    const availableDiffBudget = Math.max(0, maxTotalTokens - reservedMetadataTokens);
+    const availableDiffBudget = Math.max(
+      0,
+      maxTotalTokens - reservedMetadataTokens,
+    );
 
     // ── Step 3 / 4: determine mode for every file, keyed by path ──
     const modeByPath: Map<string, FileDiffPlan> = new Map();
@@ -72,10 +82,11 @@ export class BudgetPlanner {
 
     if (isWithinBudget) {
       for (const estimate of estimates) {
-        modeByPath.set(estimate.path, { 
-          file: estimate.file, 
-          mode: "full", 
-          estimatedTokens: estimate.fullTokens });
+        modeByPath.set(estimate.path, {
+          file: estimate.file,
+          mode: "full",
+          estimatedTokens: estimate.fullTokens,
+        });
       }
     } else {
       // 4a: oversized files
@@ -96,18 +107,21 @@ export class BudgetPlanner {
 
       // 4b: check remaining diff budget after oversized removal
       // After excluding the largest files, recalculate the remaining costs.
-      const normalDiffTotal = normal.reduce((sum, estimate) => sum + estimate.diffTokens, 0);
+      const normalDiffTotal = normal.reduce(
+        (sum, estimate) => sum + estimate.diffTokens,
+        0,
+      );
       if (normalDiffTotal <= availableDiffBudget) {
         for (const estimate of normal) {
-          modeByPath.set(estimate.path, { 
-            file: estimate.file, 
-            mode: "full", 
-            estimatedTokens: estimate.fullTokens 
+          modeByPath.set(estimate.path, {
+            file: estimate.file,
+            mode: "full",
+            estimatedTokens: estimate.fullTokens,
           });
         }
       } else {
         // 4c: greedy fill — sort asc to maximise file count within budget
-        const sorted   = [...normal].sort((a, b) => a.diffTokens - b.diffTokens);
+        const sorted = [...normal].sort((a, b) => a.diffTokens - b.diffTokens);
         const accepted: Set<string> = new Set();
         let accumulated = 0;
         for (const estimate of sorted) {
@@ -118,10 +132,10 @@ export class BudgetPlanner {
         }
         for (const estimate of normal) {
           if (accepted.has(estimate.path)) {
-            modeByPath.set(estimate.path, { 
-              file: estimate.file, 
-              mode: "full", 
-              estimatedTokens: estimate.fullTokens 
+            modeByPath.set(estimate.path, {
+              file: estimate.file,
+              mode: "full",
+              estimatedTokens: estimate.fullTokens,
             });
           } else {
             modeByPath.set(estimate.path, {
@@ -137,15 +151,23 @@ export class BudgetPlanner {
 
     // ── Assemble plans in original file order ──
     // modeByPath now covers ALL files (noise + content), so no branch needed here.
-    const plans: FileDiffPlan[] = classified.files.map(file => modeByPath.get(file.file.path)!);
+    const plans: FileDiffPlan[] = classified.files.map(
+      (file) => modeByPath.get(file.file.path)!,
+    );
 
     // ── Aggregate estimate metrics ──
-    const changedLines = estimates.map(estimate => estimate.lines);
-    const totalChangedLines = changedLines.reduce((sum, lines) => sum + lines, 0);
-    const maxSingleFileLines = changedLines.reduce((max, lines) => Math.max(max, lines), 0);
+    const changedLines = estimates.map((estimate) => estimate.lines);
+    const totalChangedLines = changedLines.reduce(
+      (sum, lines) => sum + lines,
+      0,
+    );
+    const maxSingleFileLines = changedLines.reduce(
+      (max, lines) => Math.max(max, lines),
+      0,
+    );
 
     const renamedNoContentChangeCount = contentFiles.filter(
-      file =>
+      (file) =>
         file.file.changeType === "renamed" &&
         (file.file.insertions ?? 0) === 0 &&
         (file.file.deletions ?? 0) === 0,
@@ -163,7 +185,7 @@ export class BudgetPlanner {
       isWithinBudget,
     };
 
-    const fullDiffCount = plans.filter(plan => plan.mode === "full").length;
+    const fullDiffCount = plans.filter((plan) => plan.mode === "full").length;
     const degradedCount = plans.length - fullDiffCount;
 
     return { estimate, plans, fullDiffCount, degradedCount };
