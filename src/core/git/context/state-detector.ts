@@ -36,31 +36,45 @@ export class StateDetector {
       await runDetectStep("bisect-detect", () => this.detectBisect());
 
       // 5. rebase — takes priority over merge (rebase internally uses merge machinery)
-      const rebaseState = await runDetectStep("rebase-detect", () => this.detectRebase());
+      const rebaseState = await runDetectStep("rebase-detect", () =>
+        this.detectRebase(),
+      );
       if (rebaseState !== null) {
         return { finalStep: currentStep, completedSteps, state: rebaseState };
       }
 
       // 1. merge
-      const mergeState = await runDetectStep("merge-detect", () => this.detectMerge());
+      const mergeState = await runDetectStep("merge-detect", () =>
+        this.detectMerge(),
+      );
       if (mergeState !== null) {
-        return { finalStep: currentStep,  completedSteps, state: mergeState};
+        return { finalStep: currentStep, completedSteps, state: mergeState };
       }
 
       // 2. squash-merge
-      const squashState = await runDetectStep("squash-detect", () => this.detectSquashMerge());
+      const squashState = await runDetectStep("squash-detect", () =>
+        this.detectSquashMerge(),
+      );
       if (squashState !== null) {
         return { finalStep: currentStep, completedSteps, state: squashState };
       }
 
       // 3. cherry-pick
-      const cherryPickState = await runDetectStep("cherry-pick-detect", () => this.detectCherryPick());
+      const cherryPickState = await runDetectStep("cherry-pick-detect", () =>
+        this.detectCherryPick(),
+      );
       if (cherryPickState !== null) {
-        return { finalStep: currentStep, completedSteps, state: cherryPickState };
+        return {
+          finalStep: currentStep,
+          completedSteps,
+          state: cherryPickState,
+        };
       }
 
       // 4. revert
-      const revertState = await runDetectStep("revert-detect", () => this.detectRevert());
+      const revertState = await runDetectStep("revert-detect", () =>
+        this.detectRevert(),
+      );
       if (revertState !== null) {
         return { finalStep: currentStep, completedSteps, state: revertState };
       }
@@ -68,7 +82,6 @@ export class StateDetector {
       // All checks passed with no special state found
       const cleanState: GitInternalOpState = { status: "clean" };
       return { finalStep: "complete", completedSteps, state: cleanState };
-
     } catch (error) {
       const stepDetails = {
         step: currentStep,
@@ -155,15 +168,17 @@ export class StateDetector {
     if (isMerge && isApply) {
       throw new GitError({
         code: GitCode.COMMAND_FAILED,
-        message: 
-          "Invalid git state: both rebase-merge and rebase-apply exist",
+        message: "Invalid git state: both rebase-merge and rebase-apply exist",
         details: { rebaseMergeDir, rebaseApplyDir },
       });
     }
 
     const rebaseType: "merge" | "apply" = isMerge ? "merge" : "apply";
-    const rebaseDir: string  = isMerge ? rebaseMergeDir : rebaseApplyDir;
-    const originalMessage = await this.resolveRebaseMessage(rebaseType, rebaseDir);
+    const rebaseDir: string = isMerge ? rebaseMergeDir : rebaseApplyDir;
+    const originalMessage = await this.resolveRebaseMessage(
+      rebaseType,
+      rebaseDir,
+    );
 
     return { status: "rebase", rebaseType, originalMessage };
   }
@@ -204,9 +219,11 @@ export class StateDetector {
   }
 
   /**
-  * Reads the first file in the list that exists and has non-empty content.
+   * Reads the first file in the list that exists and has non-empty content.
    */
-  private async readFirstExistingFile(filePaths: readonly string[]): Promise<string | null> {
+  private async readFirstExistingFile(
+    filePaths: readonly string[],
+  ): Promise<string | null> {
     for (const filePath of filePaths) {
       const content: string | null = await this.readFile(filePath);
       if (content !== null) {
@@ -230,10 +247,9 @@ export class StateDetector {
    * Returns null if the hash is unreachable or the git command fails.
    */
   private async resolveCommitTitle(hash: string): Promise<string | null> {
-    const result = await this.runner.run(
-      ["log", "-1", "--format=%s", hash],
-      { allowedExitCodes: [0, 128] },
-    );
+    const result = await this.runner.run(["log", "-1", "--format=%s", hash], {
+      allowedExitCodes: [0, 128],
+    });
 
     if (result.exitCode !== 0 || result.stdout.length === 0) return null;
     return result.stdout;
@@ -252,9 +268,8 @@ export class StateDetector {
 
     return this.readFirstExistingFile([
       join(rebaseDir, "final-commit"), // present after rebase --continue finishes
-      join(rebaseDir, "msg-clean"),    // present mid-apply (no comment lines)
-      join(rebaseDir, "msg"),          // present mid-apply (raw message)
+      join(rebaseDir, "msg-clean"), // present mid-apply (no comment lines)
+      join(rebaseDir, "msg"), // present mid-apply (raw message)
     ]);
   }
-
 }
