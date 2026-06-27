@@ -1,4 +1,5 @@
 import { GitCode, GitError } from "../../../shared/exceptions/index";
+import { toInt, isValidStatusToken } from "../../../lib/utils/git";
 import {
   type StagedChangeType,
   type StagedFileChange,
@@ -20,35 +21,36 @@ export class DiffCollector {
         this.runner.run(["diff", "--cached", "--name-status", "-z", "-M"]),
         // Line-by-line with brace expansion: accurate line counts + binary marker
         this.runner.run(["diff", "--cached", "--numstat", "-M"]),
-        // Line-by-line: mode 160000 ↔ submodule
+        // Line-delimited: mode 160000 ↔ submodule
         this.runner.run(["diff", "--cached", "--raw", "-M"]),
       ]);
 
       const nameStatusEntries = this.parseNameStatus(nameStatusResult.stdout);
-      const numstatMap        = this.parseNumstat(numstatResult.stdout);
-      const submodulePaths    = this.parseSubmodulePaths(rawResult.stdout);
+      const numstatMap = this.parseNumstat(numstatResult.stdout);
+      const submodulePaths = this.parseSubmodulePaths(rawResult.stdout);
 
       const files: StagedFileChange[] = nameStatusEntries.map((entry) => {
-        const stats       = numstatMap.get(entry.path);
-        const isBinary    = stats?.isBinary ?? false;
+        const stats = numstatMap.get(entry.path);
+        const isBinary = stats?.isBinary ?? false;
         const isSubmodule = submodulePaths.has(entry.path);
 
         return {
-          path:            entry.path,
-          oldPath:         entry.oldPath,
-          changeType:      entry.changeType,
+          path: entry.path,
+          oldPath: entry.oldPath,
+          changeType: entry.changeType,
           similarityScore: entry.similarityScore,
           isBinary,
           isSubmodule,
           // Binary and submodule entries carry no meaningful line count
-          insertions: isBinary || isSubmodule ? null : (stats?.insertions ?? null),
-          deletions:  isBinary || isSubmodule ? null : (stats?.deletions  ?? null),
+          insertions:
+            isBinary || isSubmodule ? null : (stats?.insertions ?? null),
+          deletions:
+            isBinary || isSubmodule ? null : (stats?.deletions ?? null),
           diff: null,
         };
       });
 
       return this.buildSummary(files);
-
     } catch (error) {
       if (error instanceof GitError) throw error;
       throw new GitError({
@@ -64,11 +66,18 @@ export class DiffCollector {
    * Returns Map<currentPath, diffText>. Binary / submodule paths
    * will have no entry (git emits no hunk text for them).
    */
-  public async collectDiff(paths: readonly string[]): Promise<Map<string, string>> {
+  public async collectDiff(
+    paths: readonly string[],
+  ): Promise<Map<string, string>> {
     if (paths.length === 0) return new Map();
 
     try {
-      const result = await this.runner.run(["diff", "--cached", "--", ...paths]);
+      const result = await this.runner.run([
+        "diff",
+        "--cached",
+        "--",
+        ...paths,
+      ]);
       return this.splitDiffByFile(result.stdout);
     } catch (error) {
       if (error instanceof GitError) throw error;
@@ -97,7 +106,7 @@ export class DiffCollector {
   }> {
     if (!raw) return [];
 
-    const tokens  = raw.split("\0").filter((t) => t.length > 0);
+    const tokens = raw.split("\0").filter((t) => t.length > 0);
     const entries: ReturnType<typeof this.parseNameStatus> = [];
     let i = 0;
 
@@ -105,28 +114,60 @@ export class DiffCollector {
       const status = tokens[i];
       if (status === undefined) break;
 
+      // Validate the token looks like a git status code
+      if (!isValidStatusToken(status)) {
+        console.warn(
+          `[auto-commit] Unexpected token in --name-status output: "${status}". `,
+        );
+        i++;
+        continue;
+      }
+
       if (status.startsWith("R") || status.startsWith("C")) {
-        const score   = parseInt(status.slice(1), 10);
+        const score = parseInt(status.slice(1), 10);
         const oldPath = tokens[i + 1];
         const newPath = tokens[i + 2];
 
-        if (oldPath === undefined || newPath === undefined) { i++; continue; }
+        if (oldPath === undefined || newPath === undefined) {
+          console.warn(
+            `[auto-commit] Incomplete rename/copy entry at token index ${i}: ` +
+              `status="${status}", oldPath=${oldPath}, newPath=${newPath}`,
+          );
+          i++;
+          continue;
+        }
 
         entries.push({
-          path:            newPath,
+          path: newPath,
           oldPath,
-          changeType:      status.startsWith("R") ? "renamed" : "copied",
+          changeType: status.startsWith("R") ? "renamed" : "copied",
           similarityScore: Number.isNaN(score) ? null : score,
         });
         i += 3;
       } else {
         const path = tokens[i + 1];
-        if (path === undefined) { i++; continue; }
+        if (path === undefined) {
+          console.warn(
+            `[auto-commit] Missing path for status "${status}" at token index ${i}`,
+          );
+          i++;
+          continue;
+        }
+
+        const changeType = this.toChangeType(status);
+        if (changeType === null) {
+          console.warn(
+            `[auto-commit] Unrecognised git status code: "${status}". ` +
+              `The file "${path}" will be excluded from the diff summary.`,
+          );
+          i += 2;
+          continue;
+        }
 
         entries.push({
           path,
-          oldPath:         null,
-          changeType:      this.toChangeType(status),
+          oldPath: null,
+          changeType,
           similarityScore: null,
         });
         i += 2;
@@ -136,22 +177,24 @@ export class DiffCollector {
     return entries;
   }
 
-  private toChangeType(code: string): StagedChangeType {
+  private toChangeType(code: string): StagedChangeType | null {
     switch (code[0]) {
-      case "A": return "added";
-      case "M": return "modified";
-      case "D": return "deleted";
-      case "T": return "type-changed";
+      case "A":
+        return "added";
+      case "M":
+        return "modified";
+      case "D":
+        return "deleted";
+      case "T":
+        return "type-changed";
       case "R": // should be caught by the R/C branch in parseNameStatus
       case "C":
         console.warn(
-          `[auto-commit] Rename/copy status "${code}" reached toChangeType — `
+          `[auto-commit] Rename/copy status "${code}" reached toChangeType — `,
         );
         return null;
       default:
-        console.warn(
-          `[auto-commit] Unknown git status code: "${code}". `
-        );
+        console.warn(`[auto-commit] Unknown git status code: "${code}". `);
         return null;
     }
   }
@@ -169,12 +212,22 @@ export class DiffCollector {
    *
    * Map is keyed by the CURRENT (new) path so it aligns with name-status entries.
    */
-  private parseNumstat(raw: string): Map<string, {
-    insertions: number | null;
-    deletions:  number | null;
-    isBinary:   boolean;
-  }> {
-    const map = new Map<string, { insertions: number | null; deletions: number | null; isBinary: boolean }>();
+  private parseNumstat(raw: string): Map<
+    string,
+    {
+      insertions: number | null;
+      deletions: number | null;
+      isBinary: boolean;
+    }
+  > {
+    const map = new Map<
+      string,
+      {
+        insertions: number | null;
+        deletions: number | null;
+        isBinary: boolean;
+      }
+    >();
     if (!raw) return map;
 
     for (const line of raw.split("\n")) {
@@ -184,15 +237,15 @@ export class DiffCollector {
       const tabIndex2 = line.indexOf("\t", tabIndex1 + 1);
       if (tabIndex1 === -1 || tabIndex2 === -1) continue;
 
-      const insStr  = line.slice(0, tabIndex1);
-      const delStr  = line.slice(tabIndex1 + 1, tabIndex2);
+      const insStr = line.slice(0, tabIndex1);
+      const delStr = line.slice(tabIndex1 + 1, tabIndex2);
       const rawPath = line.slice(tabIndex2 + 1);
 
-      const isBinary  = insStr === "-" || delStr === "-";
-      const insertions = isBinary ? null : parseInt(insStr, 10);
-      const deletions  = isBinary ? null : parseInt(delStr, 10);
+      const isBinary = insStr === "-" || delStr === "-";
+      // 🔧 FIX: guard against NaN from parseInt on malformed input
+      const insertions = isBinary ? null : toInt(insStr);
+      const deletions = isBinary ? null : toInt(delStr);
 
-      // Expand brace notation to extract the current (new) path as the map key
       const { newPath } = this.expandBracePath(rawPath);
 
       map.set(newPath, { insertions, deletions, isBinary });
@@ -215,10 +268,10 @@ export class DiffCollector {
     const match = /^(.*?)\{(.*?) => (.*?)\}(.*)$/.exec(raw);
     if (!match) return { oldPath: raw, newPath: raw };
 
-    const prefix  = match[1] ?? "";
+    const prefix = match[1] ?? "";
     const oldPart = match[2] ?? "";
     const newPart = match[3] ?? "";
-    const suffix  = match[4] ?? "";
+    const suffix = match[4] ?? "";
 
     return {
       oldPath: prefix + oldPart + suffix,
@@ -246,7 +299,7 @@ export class DiffCollector {
       const tabIdx = line.indexOf("\t");
       if (tabIdx === -1) continue;
 
-      const meta  = line.slice(0, tabIdx);  // ":<oldmode> <newmode> ..."
+      const meta = line.slice(0, tabIdx); // ":<oldmode> <newmode> ..."
       const paths = line.slice(tabIdx + 1).split("\t");
 
       const metaParts = meta.split(" ");
@@ -299,15 +352,15 @@ export class DiffCollector {
 
   private buildSummary(files: StagedFileChange[]): StagedDiffSummary {
     let totalInsertions = 0;
-    let totalDeletions  = 0;
-    let hasBinaryFiles  = false;
-    let hasSubmodules   = false;
+    let totalDeletions = 0;
+    let hasBinaryFiles = false;
+    let hasSubmodules = false;
 
     for (const file of files) {
       totalInsertions += file.insertions ?? 0;
-      totalDeletions  += file.deletions  ?? 0;
-      if (file.isBinary)    hasBinaryFiles = true;
-      if (file.isSubmodule) hasSubmodules  = true;
+      totalDeletions += file.deletions ?? 0;
+      if (file.isBinary) hasBinaryFiles = true;
+      if (file.isSubmodule) hasSubmodules = true;
     }
 
     return {
