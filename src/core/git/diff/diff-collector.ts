@@ -300,7 +300,7 @@ export class DiffCollector {
       const tabIdx = line.indexOf("\t");
       if (tabIdx === -1) continue;
 
-      const meta = line.slice(0, tabIdx); // ":<oldmode> <newmode> ..."
+      const meta = line.slice(0, tabIdx);
       const paths = line.slice(tabIdx + 1).split("\t");
 
       const metaParts = meta.split(" ");
