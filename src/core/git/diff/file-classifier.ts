@@ -24,9 +24,11 @@ export class FileClassifier {
     this.runner = runner;
   }
 
-  public async classify(summary: StagedDiffSummary): Promise<FileClassificationResult> {
+  public async classify(
+    summary: StagedDiffSummary,
+  ): Promise<FileClassificationResult> {
     const files = await Promise.all(
-      summary.files.map(file => this.classifyFile(file))
+      summary.files.map((file) => this.classifyFile(file)),
     );
 
     let noiseCount = 0;
@@ -48,10 +50,12 @@ export class FileClassifier {
     return { file, isNoise: false, contentCategory };
   }
 
-  private async detectNoiseCategory(file: StagedFileChange): Promise<FileNoiseCategory | null> {
+  private async detectNoiseCategory(
+    file: StagedFileChange,
+  ): Promise<FileNoiseCategory | null> {
     if (file.isSubmodule) return "submodule";
-    if (file.isBinary)    return "binary";
-    if (this.isLfsCandidate(file) && await this.isLfsPointer(file.path)) {
+    if (file.isBinary) return "binary";
+    if (this.isLfsCandidate(file) && (await this.isLfsPointer(file.path))) {
       return "lfs-pointer";
     }
     return null;
@@ -59,8 +63,15 @@ export class FileClassifier {
 
   private detectContentCategory(file: StagedFileChange): FileContentCategory {
     const fileBasename = basename(file.path);
+
+    // Exact match basename
     if (LOCK_FILE_BASENAMES.has(fileBasename)) return "lockfile";
-    if (LOCK_FILE_PATH_PATTERNS.some(p => p.test(file.path))) return "lockfile";
+
+    // Regex matchs fully pathname
+    for (const pattern of LOCK_FILE_PATH_PATTERNS) {
+      if (pattern.test(file.path)) return "lockfile";
+    }
+    
     return "source";
   }
 
@@ -68,10 +79,14 @@ export class FileClassifier {
    * LFS pointer spec guarantees pointer files are < 1024 bytes, meaning at most
    * ~10 lines. Skip the blob read for files that exceed this threshold.
    */
-  private isLfsCandidate(file: StagedFileChange): boolean {
-    if (file.changeType === "deleted") return false;
-    return file.insertions !== null && file.insertions <= LFS_POINTER_MAX_LINES;
-  }
+   private isLfsCandidate(file: StagedFileChange): boolean {
+     if (file.changeType === "deleted") return false;
+     
+     // Empty files or modifications with only deletions cannot be LFS pointers
+     if (file.insertions === null || file.insertions === 0) return false;
+     
+     return file.insertions <= LFS_POINTER_MAX_LINES;
+   }
 
   /** Reads the staged blob and checks for the Git LFS pointer header. */
   private async isLfsPointer(path: string): Promise<boolean> {
