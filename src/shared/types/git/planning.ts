@@ -2,10 +2,10 @@ import { type ClassifiedFile } from "./classify";
 
 /**
  * - maxTotalTokens: token ceiling for the diff section
- * - maxLinesPerFile: files with more total changed lines than 
- *                    this are "oversized" and always degraded. 
+ * - maxLinesPerFile: files with more total changed lines than
+ *                    this are "oversized" and always degraded.
  * - tokensPerLine: tokens-per-changed-line multiplier used for estimation
- * - tokensPerFileOverhead: Fixed per-file overhead 
+ * - tokensPerFileOverhead: Fixed per-file overhead
  */
 export interface BudgetThresholds {
   readonly maxTotalTokens: number;
@@ -46,7 +46,7 @@ export interface FileDiffPlan {
  */
 export interface BudgetEstimate {
   readonly totalFiles: number;
-  readonly contentFiles: number;
+  readonly nonNoiseFiles: number;
   readonly noiseFiles: number;
   /** Renamed files whose insertions and deletions are both zero. */
   readonly renamedNoContentChangeCount: number;
