@@ -131,7 +131,7 @@ describe("DiffCollector.collect() — basic file types", () => {
     expect(result.files[0]!.changeType).toBe("type-changed");
   });
 
-  test("unknown status code defaults to changeType=modified", async () => {
+  test("unknown status code is skipped gracefully", async () => {
     const collector = new DiffCollector(collectRunner(
       "X\0src/unknown.ts",
       "2\t1\tsrc/unknown.ts",
@@ -139,7 +139,7 @@ describe("DiffCollector.collect() — basic file types", () => {
     ));
     const result = await collector.collect();
 
-    expect(result.files[0]!.changeType).toBe("modified");
+    expect(result.files).toHaveLength(0);
   });
 });
 
