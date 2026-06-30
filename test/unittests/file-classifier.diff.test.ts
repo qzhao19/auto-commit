@@ -97,7 +97,7 @@ describe("FileClassifier.classify() — empty staging area", () => {
     const result = await new FileClassifier(runner).classify(makeSummary());
 
     expect(result.noiseCount).toBe(0);
-    expect(result.contentCount).toBe(0);
+    expect(result.nonNoiseCount).toBe(0);
     expect(result.files).toHaveLength(0);
   });
 });
@@ -113,7 +113,7 @@ describe("FileClassifier.classify() — noise detection: binary", () => {
     const result = await new FileClassifier(runner).classify(makeSummary(file));
 
     expect(result.noiseCount).toBe(1);
-    expect(result.contentCount).toBe(0);
+    expect(result.nonNoiseCount).toBe(0);
     const cf = result.files[0]!;
     expect(cf.isNoise).toBe(true);
     if (cf.isNoise) expect(cf.noiseCategory).toBe("binary");
@@ -137,7 +137,7 @@ describe("FileClassifier.classify() — noise detection: binary", () => {
     const result = await new FileClassifier(runner).classify(makeSummary(...files));
 
     expect(result.noiseCount).toBe(3);
-    expect(result.contentCount).toBe(0);
+    expect(result.nonNoiseCount).toBe(0);
     result.files.forEach(cf => {
       expect(cf.isNoise).toBe(true);
       if (cf.isNoise) expect(cf.noiseCategory).toBe("binary");
@@ -205,13 +205,13 @@ describe("FileClassifier.classify() — noise detection: lfs-pointer", () => {
     expect(runMock.mock.calls[0]![0]).toEqual(["cat-file", "blob", ":assets/video.mp4"]);
   });
 
-  test("blob content that does not start with LFS magic → falls through to ContentFile", async () => {
+  test("blob content that does not start with LFS magic → falls through to NonNoiseFile", async () => {
     const { runner } = blobRunner("const x = 1;\nconst y = 2;\nconst z = 3;\n");
     const file = makeFile({ insertions: 3 });
     const result = await new FileClassifier(runner).classify(makeSummary(file));
 
     expect(result.noiseCount).toBe(0);
-    expect(result.contentCount).toBe(1);
+    expect(result.nonNoiseCount).toBe(1);
     expect(result.files[0]!.isNoise).toBe(false);
   });
 
@@ -229,7 +229,7 @@ describe("FileClassifier.classify() — noise detection: lfs-pointer", () => {
     );
 
     expect(result.noiseCount).toBe(0);
-    expect(result.contentCount).toBe(1);
+    expect(result.nonNoiseCount).toBe(1);
   });
 });
 
@@ -312,14 +312,14 @@ describe("FileClassifier.classify() — content detection: lockfile (exact basen
   ];
 
   for (const name of knownLockfiles) {
-    test(`${name} → contentCategory:'lockfile'`, async () => {
+    test(`${name} → nonNoiseCategory:'lockfile'`, async () => {
       const { runner } = noopRunner();
       const file = makeFile({ path: name, insertions: 200 });
       const result = await new FileClassifier(runner).classify(makeSummary(file));
 
       const cf = result.files[0]!;
       expect(cf.isNoise).toBe(false);
-      if (!cf.isNoise) expect(cf.contentCategory).toBe("lockfile");
+      if (!cf.isNoise) expect(cf.nonNoiseCategory).toBe("lockfile");
     });
   }
 
@@ -329,7 +329,7 @@ describe("FileClassifier.classify() — content detection: lockfile (exact basen
     const result = await new FileClassifier(runner).classify(makeSummary(file));
 
     const cf = result.files[0]!;
-    if (!cf.isNoise) expect(cf.contentCategory).toBe("lockfile");
+    if (!cf.isNoise) expect(cf.nonNoiseCategory).toBe("lockfile");
   });
 
   test("name that contains 'lock' but does not match exactly → 'source'", async () => {
@@ -338,7 +338,7 @@ describe("FileClassifier.classify() — content detection: lockfile (exact basen
     const result = await new FileClassifier(runner).classify(makeSummary(file));
 
     const cf = result.files[0]!;
-    if (!cf.isNoise) expect(cf.contentCategory).toBe("source");
+    if (!cf.isNoise) expect(cf.nonNoiseCategory).toBe("source");
   });
 
   test("case-sensitive: Cargo.lock matches, cargo.lock does not", async () => {
@@ -347,7 +347,7 @@ describe("FileClassifier.classify() — content detection: lockfile (exact basen
     const result = await new FileClassifier(runner).classify(makeSummary(wrong));
 
     const cf = result.files[0]!;
-    if (!cf.isNoise) expect(cf.contentCategory).toBe("source");
+    if (!cf.isNoise) expect(cf.nonNoiseCategory).toBe("source");
   });
 });
 
@@ -356,14 +356,14 @@ describe("FileClassifier.classify() — content detection: lockfile (exact basen
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("FileClassifier.classify() — content detection: lockfile (path pattern)", () => {
-  test("gradle/dependency-locks/*.lockfile → contentCategory:'lockfile'", async () => {
+  test("gradle/dependency-locks/*.lockfile → nonNoiseCategory:'lockfile'", async () => {
     const { runner } = noopRunner();
     const file = makeFile({ path: "gradle/dependency-locks/compileClasspath.lockfile", insertions: 50 });
     const result = await new FileClassifier(runner).classify(makeSummary(file));
 
     const cf = result.files[0]!;
     expect(cf.isNoise).toBe(false);
-    if (!cf.isNoise) expect(cf.contentCategory).toBe("lockfile");
+    if (!cf.isNoise) expect(cf.nonNoiseCategory).toBe("lockfile");
   });
 
   test("nested subproject gradle dependency lock → also matches", async () => {
@@ -372,25 +372,25 @@ describe("FileClassifier.classify() — content detection: lockfile (path patter
     const result = await new FileClassifier(runner).classify(makeSummary(file));
 
     const cf = result.files[0]!;
-    if (!cf.isNoise) expect(cf.contentCategory).toBe("lockfile");
+    if (!cf.isNoise) expect(cf.nonNoiseCategory).toBe("lockfile");
   });
 
-  test("*.opam.locked → contentCategory:'lockfile'", async () => {
+  test("*.opam.locked → nonNoiseCategory:'lockfile'", async () => {
     const { runner } = noopRunner();
     const file = makeFile({ path: "mylib.opam.locked", insertions: 30 });
     const result = await new FileClassifier(runner).classify(makeSummary(file));
 
     const cf = result.files[0]!;
-    if (!cf.isNoise) expect(cf.contentCategory).toBe("lockfile");
+    if (!cf.isNoise) expect(cf.nonNoiseCategory).toBe("lockfile");
   });
 
-  test("*.opam.locked in subdirectory → contentCategory:'lockfile'", async () => {
+  test("*.opam.locked in subdirectory → nonNoiseCategory:'lockfile'", async () => {
     const { runner } = noopRunner();
     const file = makeFile({ path: "opam/packages/mylib.opam.locked", insertions: 30 });
     const result = await new FileClassifier(runner).classify(makeSummary(file));
 
     const cf = result.files[0]!;
-    if (!cf.isNoise) expect(cf.contentCategory).toBe("lockfile");
+    if (!cf.isNoise) expect(cf.nonNoiseCategory).toBe("lockfile");
   });
 
   test("bare *.lockfile suffix without gradle path → 'source' (pattern does not match)", async () => {
@@ -399,7 +399,7 @@ describe("FileClassifier.classify() — content detection: lockfile (path patter
     const result = await new FileClassifier(runner).classify(makeSummary(file));
 
     const cf = result.files[0]!;
-    if (!cf.isNoise) expect(cf.contentCategory).toBe("source");
+    if (!cf.isNoise) expect(cf.nonNoiseCategory).toBe("source");
   });
 });
 
@@ -421,14 +421,14 @@ describe("FileClassifier.classify() — content detection: source", () => {
   ];
 
   for (const path of sourcePaths) {
-    test(`${path} → isNoise:false, contentCategory:'source'`, async () => {
+    test(`${path} → isNoise:false, nonNoiseCategory:'source'`, async () => {
       const { runner } = noopRunner();
       const file = makeFile({ path, insertions: 50 });
       const result = await new FileClassifier(runner).classify(makeSummary(file));
 
       const cf = result.files[0]!;
       expect(cf.isNoise).toBe(false);
-      if (!cf.isNoise) expect(cf.contentCategory).toBe("source");
+      if (!cf.isNoise) expect(cf.nonNoiseCategory).toBe("source");
     });
   }
 });
@@ -438,7 +438,7 @@ describe("FileClassifier.classify() — content detection: source", () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("FileClassifier.classify() — aggregate counts and result shape", () => {
-  test("all noise → noiseCount equals files.length, contentCount:0", async () => {
+  test("all noise → noiseCount equals files.length, nonNoiseCount:0", async () => {
     const { runner } = noopRunner();
     const files = [
       makeFile({ path: "a.png",  isBinary: true,    insertions: null }),
@@ -448,11 +448,11 @@ describe("FileClassifier.classify() — aggregate counts and result shape", () =
     const result = await new FileClassifier(runner).classify(makeSummary(...files));
 
     expect(result.noiseCount).toBe(3);
-    expect(result.contentCount).toBe(0);
+    expect(result.nonNoiseCount).toBe(0);
     expect(result.files).toHaveLength(3);
   });
 
-  test("all content → contentCount equals files.length, noiseCount:0", async () => {
+  test("all content → nonNoiseCount equals files.length, noiseCount:0", async () => {
     const { runner } = noopRunner();
     const files = [
       makeFile({ path: "src/a.ts",  insertions: 50 }),
@@ -462,10 +462,10 @@ describe("FileClassifier.classify() — aggregate counts and result shape", () =
     const result = await new FileClassifier(runner).classify(makeSummary(...files));
 
     expect(result.noiseCount).toBe(0);
-    expect(result.contentCount).toBe(3);
+    expect(result.nonNoiseCount).toBe(3);
   });
 
-  test("mixed: noiseCount + contentCount === files.length", async () => {
+  test("mixed: noiseCount + nonNoiseCount === files.length", async () => {
     const { runner } = noopRunner();
     const files = [
       makeFile({ path: "src/a.ts",   insertions: 50 }),
@@ -476,8 +476,8 @@ describe("FileClassifier.classify() — aggregate counts and result shape", () =
     const result = await new FileClassifier(runner).classify(makeSummary(...files));
 
     expect(result.noiseCount).toBe(2);
-    expect(result.contentCount).toBe(2);
-    expect(result.noiseCount + result.contentCount).toBe(result.files.length);
+    expect(result.nonNoiseCount).toBe(2);
+    expect(result.noiseCount + result.nonNoiseCount).toBe(result.files.length);
   });
 
   test("output files array preserves original order", async () => {
