@@ -34,10 +34,10 @@ export class BudgetPlanner {
 
     // ── Step 1: separate noise from content ──
     const noiseFiles = classified.files.filter((file) => file.isNoise);
-    const contentFiles = classified.files.filter((file) => !file.isNoise);
+    const nonNoiseFiles = classified.files.filter((file) => !file.isNoise);
 
     // ── Step 2: per-file token estimates ──
-    const estimates: FileEstimate[] = contentFiles.map((file) => {
+    const estimates: FileEstimate[] = nonNoiseFiles.map((file) => {
       const lines = (file.file.insertions ?? 0) + (file.file.deletions ?? 0);
       const diffTokens = lines * tokensPerLine;
       const fullTokens = diffTokens + tokensPerFileOverhead;
@@ -121,7 +121,23 @@ export class BudgetPlanner {
         }
       } else {
         // 4c: greedy fill — sort asc to maximise file count within budget
-        const sorted = [...normal].sort((a, b) => a.diffTokens - b.diffTokens);
+        // const sorted = [...normal].sort((a, b) => a.diffTokens - b.diffTokens);
+        const sorted = [...normal].sort((a, b) => {
+          // Priority tier 1: source files come before lockfiles
+          const catA = a.file.isNoise ? null : a.file.nonNoiseCategory;
+          const catB = b.file.isNoise ? null : b.file.nonNoiseCategory;
+
+          if (catA !== catB) {
+            // "source" < "lockfile" alphabetically, so direct string compare works
+            // But for explicitness and maintainability:
+            if (catA === "source" && catB === "lockfile") return -1;
+            if (catA === "lockfile" && catB === "source") return 1;
+          }
+
+          // Priority tier 2: within same category, smaller files first (maximize count)
+          return a.diffTokens - b.diffTokens;
+        });
+
         const accepted: Set<string> = new Set();
         let accumulated = 0;
         for (const estimate of sorted) {
@@ -166,7 +182,7 @@ export class BudgetPlanner {
       0,
     );
 
-    const renamedNoContentChangeCount = contentFiles.filter(
+    const renamedNoContentChangeCount = nonNoiseFiles.filter(
       (file) =>
         file.file.changeType === "renamed" &&
         (file.file.insertions ?? 0) === 0 &&
@@ -175,7 +191,7 @@ export class BudgetPlanner {
 
     const estimate: BudgetEstimate = {
       totalFiles: classified.files.length,
-      contentFiles: classified.contentCount,
+      nonNoiseFiles: classified.nonNoiseCount,
       noiseFiles: classified.noiseCount,
       renamedNoContentChangeCount,
       maxSingleFileLines,
