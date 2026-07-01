@@ -68,11 +68,11 @@ export class BudgetPlanner {
     );
 
     // ── Step 3 / 4: determine mode for every file, keyed by path ──
-    const modeByPath: Map<string, FileDiffPlan> = new Map();
+    const diffPlanByPath: Map<string, FileDiffPlan> = new Map();
 
     // Noise files: always degraded, no diff to fetch.
     for (const file of noiseFiles) {
-      modeByPath.set(file.file.path, {
+      diffPlanByPath.set(file.file.path, {
         file,
         mode: "degraded",
         degradationReason: "noise",
@@ -82,7 +82,7 @@ export class BudgetPlanner {
 
     if (isWithinBudget) {
       for (const estimate of estimates) {
-        modeByPath.set(estimate.path, {
+        diffPlanByPath.set(estimate.path, {
           file: estimate.file,
           mode: "full",
           estimatedTokens: estimate.fullTokens,
@@ -94,7 +94,7 @@ export class BudgetPlanner {
       for (const estimate of estimates) {
         // If greater than a specific number of lines
         if (estimate.lines > maxLinesPerFile) {
-          modeByPath.set(estimate.path, {
+          diffPlanByPath.set(estimate.path, {
             file: estimate.file,
             mode: "degraded",
             degradationReason: "oversized",
@@ -113,7 +113,7 @@ export class BudgetPlanner {
       );
       if (normalDiffTotal <= availableDiffBudget) {
         for (const estimate of normal) {
-          modeByPath.set(estimate.path, {
+          diffPlanByPath.set(estimate.path, {
             file: estimate.file,
             mode: "full",
             estimatedTokens: estimate.fullTokens,
@@ -121,7 +121,6 @@ export class BudgetPlanner {
         }
       } else {
         // 4c: greedy fill — sort asc to maximise file count within budget
-        // const sorted = [...normal].sort((a, b) => a.diffTokens - b.diffTokens);
         const sorted = [...normal].sort((a, b) => {
           // Priority tier 1: source files come before lockfiles
           const catA = a.file.isNoise ? null : a.file.nonNoiseCategory;
@@ -148,13 +147,13 @@ export class BudgetPlanner {
         }
         for (const estimate of normal) {
           if (accepted.has(estimate.path)) {
-            modeByPath.set(estimate.path, {
+            diffPlanByPath.set(estimate.path, {
               file: estimate.file,
               mode: "full",
               estimatedTokens: estimate.fullTokens,
             });
           } else {
-            modeByPath.set(estimate.path, {
+            diffPlanByPath.set(estimate.path, {
               file: estimate.file,
               mode: "degraded",
               degradationReason: "budget-exceeded",
@@ -166,9 +165,9 @@ export class BudgetPlanner {
     }
 
     // ── Assemble plans in original file order ──
-    // modeByPath now covers ALL files (noise + content), so no branch needed here.
+    // diffPlanByPath now covers ALL files (noise + content), so no branch needed here.
     const plans: FileDiffPlan[] = classified.files.map(
-      (file) => modeByPath.get(file.file.path)!,
+      (file) => diffPlanByPath.get(file.file.path)!,
     );
 
     // ── Aggregate estimate metrics ──
