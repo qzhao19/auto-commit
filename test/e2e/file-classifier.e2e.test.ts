@@ -114,7 +114,7 @@ describe("FileClassifier e2e — empty staging area", () => {
     const result = await run(repoDir);
 
     expect(result.noiseCount).toBe(0);
-    expect(result.contentCount).toBe(0);
+    expect(result.nonNoiseCount).toBe(0);
     expect(result.files).toHaveLength(0);
   });
 });
@@ -124,17 +124,17 @@ describe("FileClassifier e2e — empty staging area", () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("FileClassifier e2e — source files", () => {
-  test("newly staged source file → isNoise:false, contentCategory:'source'", async () => {
+  test("newly staged source file → isNoise:false, nonNoiseCategory:'source'", async () => {
     await initRepo(repoDir);
     await stageFile(repoDir, "src/index.ts", "export const x = 1;\n");
 
     const result = await run(repoDir);
 
-    expect(result.contentCount).toBe(1);
+    expect(result.nonNoiseCount).toBe(1);
     expect(result.noiseCount).toBe(0);
     const cf = result.files[0]!;
     expect(cf.isNoise).toBe(false);
-    if (!cf.isNoise) expect(cf.contentCategory).toBe("source");
+    if (!cf.isNoise) expect(cf.nonNoiseCategory).toBe("source");
   });
 
   test("modified source file → content/source", async () => {
@@ -146,7 +146,7 @@ describe("FileClassifier e2e — source files", () => {
 
     const cf = result.files[0]!;
     expect(cf.isNoise).toBe(false);
-    if (!cf.isNoise) expect(cf.contentCategory).toBe("source");
+    if (!cf.isNoise) expect(cf.nonNoiseCategory).toBe("source");
   });
 
   test("deleted source file → content/source (no staged blob, skips LFS check)", async () => {
@@ -158,10 +158,10 @@ describe("FileClassifier e2e — source files", () => {
 
     const cf = result.files[0]!;
     expect(cf.isNoise).toBe(false);
-    if (!cf.isNoise) expect(cf.contentCategory).toBe("source");
+    if (!cf.isNoise) expect(cf.nonNoiseCategory).toBe("source");
   });
 
-  test("multiple source files: all content/source, contentCount matches", async () => {
+  test("multiple source files: all content/source, nonNoiseCount matches", async () => {
     await initRepo(repoDir);
     await stageFile(repoDir, "a.ts", "a\n");
     await stageFile(repoDir, "b.ts", "b\n");
@@ -169,11 +169,11 @@ describe("FileClassifier e2e — source files", () => {
 
     const result = await run(repoDir);
 
-    expect(result.contentCount).toBe(3);
+    expect(result.nonNoiseCount).toBe(3);
     expect(result.noiseCount).toBe(0);
     result.files.forEach(cf => {
       expect(cf.isNoise).toBe(false);
-      if (!cf.isNoise) expect(cf.contentCategory).toBe("source");
+      if (!cf.isNoise) expect(cf.nonNoiseCategory).toBe("source");
     });
   });
 });
@@ -206,7 +206,7 @@ describe("FileClassifier e2e — lock files (exact basename)", () => {
 
       const cf = result.files[0]!;
       expect(cf.isNoise).toBe(false);
-      if (!cf.isNoise) expect(cf.contentCategory).toBe("lockfile");
+      if (!cf.isNoise) expect(cf.nonNoiseCategory).toBe("lockfile");
     });
   }
 
@@ -217,7 +217,7 @@ describe("FileClassifier e2e — lock files (exact basename)", () => {
     const result = await run(repoDir);
 
     const cf = result.files[0]!;
-    if (!cf.isNoise) expect(cf.contentCategory).toBe("lockfile");
+    if (!cf.isNoise) expect(cf.nonNoiseCategory).toBe("lockfile");
   });
 
   test("file with similar name that is not a lock file → content/source", async () => {
@@ -228,7 +228,7 @@ describe("FileClassifier e2e — lock files (exact basename)", () => {
     const result = await run(repoDir);
 
     const cf = result.files[0]!;
-    if (!cf.isNoise) expect(cf.contentCategory).toBe("source");
+    if (!cf.isNoise) expect(cf.nonNoiseCategory).toBe("source");
   });
 
   test("case mismatch: cargo.lock (lowercase) is not a lock file → content/source", async () => {
@@ -238,7 +238,7 @@ describe("FileClassifier e2e — lock files (exact basename)", () => {
     const result = await run(repoDir);
 
     const cf = result.files[0]!;
-    if (!cf.isNoise) expect(cf.contentCategory).toBe("source");
+    if (!cf.isNoise) expect(cf.nonNoiseCategory).toBe("source");
   });
 });
 
@@ -259,7 +259,7 @@ describe("FileClassifier e2e — lock files (path patterns)", () => {
 
     const cf = result.files[0]!;
     expect(cf.isNoise).toBe(false);
-    if (!cf.isNoise) expect(cf.contentCategory).toBe("lockfile");
+    if (!cf.isNoise) expect(cf.nonNoiseCategory).toBe("lockfile");
   });
 
   test("nested gradle dependency-locks inside a subproject → content/lockfile", async () => {
@@ -273,7 +273,7 @@ describe("FileClassifier e2e — lock files (path patterns)", () => {
     const result = await run(repoDir);
 
     const cf = result.files[0]!;
-    if (!cf.isNoise) expect(cf.contentCategory).toBe("lockfile");
+    if (!cf.isNoise) expect(cf.nonNoiseCategory).toBe("lockfile");
   });
 
   test("*.opam.locked → content/lockfile", async () => {
@@ -283,7 +283,7 @@ describe("FileClassifier e2e — lock files (path patterns)", () => {
     const result = await run(repoDir);
 
     const cf = result.files[0]!;
-    if (!cf.isNoise) expect(cf.contentCategory).toBe("lockfile");
+    if (!cf.isNoise) expect(cf.nonNoiseCategory).toBe("lockfile");
   });
 
   test("bare *.lockfile at top level (no gradle path) → content/source", async () => {
@@ -293,7 +293,7 @@ describe("FileClassifier e2e — lock files (path patterns)", () => {
     const result = await run(repoDir);
 
     const cf = result.files[0]!;
-    if (!cf.isNoise) expect(cf.contentCategory).toBe("source");
+    if (!cf.isNoise) expect(cf.nonNoiseCategory).toBe("source");
   });
 });
 
@@ -309,7 +309,7 @@ describe("FileClassifier e2e — noise: binary", () => {
     const result = await run(repoDir);
 
     expect(result.noiseCount).toBe(1);
-    expect(result.contentCount).toBe(0);
+    expect(result.nonNoiseCount).toBe(0);
     const cf = result.files[0]!;
     expect(cf.isNoise).toBe(true);
     if (cf.isNoise) expect(cf.noiseCategory).toBe("binary");
@@ -390,7 +390,7 @@ describe("FileClassifier e2e — noise: lfs-pointer (simulated)", () => {
     expect(result.noiseCount).toBe(0);
     const cf = result.files[0]!;
     expect(cf.isNoise).toBe(false);
-    if (!cf.isNoise) expect(cf.contentCategory).toBe("source");
+    if (!cf.isNoise) expect(cf.nonNoiseCategory).toBe("source");
   });
 
   test("deleted LFS pointer → skips cat-file, classified as content/source", async () => {
@@ -405,7 +405,7 @@ describe("FileClassifier e2e — noise: lfs-pointer (simulated)", () => {
     expect(result.noiseCount).toBe(0);
     const cf = result.files[0]!;
     expect(cf.isNoise).toBe(false);
-    if (!cf.isNoise) expect(cf.contentCategory).toBe("source");
+    if (!cf.isNoise) expect(cf.nonNoiseCategory).toBe("source");
   });
 
   test("modified LFS pointer (1 insertion, 1 deletion) is still a candidate and detected", async () => {
@@ -444,17 +444,17 @@ describe("FileClassifier e2e — mixed staging area", () => {
     const result = await run(repoDir);
 
     expect(result.noiseCount).toBe(0);
-    expect(result.contentCount).toBe(2);
+    expect(result.nonNoiseCount).toBe(2);
 
     const byPath = Object.fromEntries(result.files.map(f => [f.file.path, f]));
     const pkg = byPath["package.json"]!;
     const lock = byPath["yarn.lock"]!;
 
     expect(pkg.isNoise).toBe(false);
-    if (!pkg.isNoise) expect(pkg.contentCategory).toBe("source");
+    if (!pkg.isNoise) expect(pkg.nonNoiseCategory).toBe("source");
 
     expect(lock.isNoise).toBe(false);
-    if (!lock.isNoise) expect(lock.contentCategory).toBe("lockfile");
+    if (!lock.isNoise) expect(lock.nonNoiseCategory).toBe("lockfile");
   });
 
   test("feature commit: source files only, no noise", async () => {
@@ -466,10 +466,10 @@ describe("FileClassifier e2e — mixed staging area", () => {
     const result = await run(repoDir);
 
     expect(result.noiseCount).toBe(0);
-    expect(result.contentCount).toBe(3);
+    expect(result.nonNoiseCount).toBe(3);
     result.files.forEach(cf => {
       expect(cf.isNoise).toBe(false);
-      if (!cf.isNoise) expect(cf.contentCategory).toBe("source");
+      if (!cf.isNoise) expect(cf.nonNoiseCategory).toBe("source");
     });
   });
 
@@ -482,7 +482,7 @@ describe("FileClassifier e2e — mixed staging area", () => {
     const result = await run(repoDir);
 
     expect(result.noiseCount).toBe(2);
-    expect(result.contentCount).toBe(1);
+    expect(result.nonNoiseCount).toBe(1);
 
     const noisy = result.files.filter(f => f.isNoise);
     noisy.forEach(cf => {
@@ -490,7 +490,7 @@ describe("FileClassifier e2e — mixed staging area", () => {
     });
   });
 
-  test("noiseCount + contentCount always equals total staged files", async () => {
+  test("noiseCount + nonNoiseCount always equals total staged files", async () => {
     await initRepo(repoDir);
     await commitFile(repoDir, "existing.ts", "old\n");
 
@@ -502,7 +502,7 @@ describe("FileClassifier e2e — mixed staging area", () => {
 
     const result = await run(repoDir);
 
-    expect(result.noiseCount + result.contentCount).toBe(result.files.length);
+    expect(result.noiseCount + result.nonNoiseCount).toBe(result.files.length);
     expect(result.files).toHaveLength(5);
   });
 });
