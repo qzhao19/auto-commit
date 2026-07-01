@@ -180,11 +180,11 @@ describe("StateDetector e2e", () => {
       ]);
     });
 
-    test("finalStep is 'revert-detect' when all steps complete", async () => {
+    test("finalStep is 'complete' when all steps complete", async () => {
       await initRepo(repoDir);
       await makeCommit(repoDir, "file.txt", "content");
 
-      expect((await makeDetector().detect()).finalStep).toBe("revert-detect");
+      expect((await makeDetector().detect()).finalStep).toBe("complete");
     });
   });
 
