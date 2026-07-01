@@ -18,12 +18,17 @@ import { DiffCollector } from "../../src/core/git/diff/diff-collector";
 import { FileClassifier } from "../../src/core/git/diff/file-classifier";
 import { GitRunner } from "../../src/core/git/runner/git-runner";
 import { LFS_POINTER_MAGIC } from "../../src/shared/constants/index";
-import type { BudgetThresholds, DiffPlanResult } from "../../src/shared/types/index";
+import type {
+  BudgetThresholds,
+  DiffPlanResult,
+} from "../../src/shared/types/index";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 /** Minimal PNG magic bytes — causes git numstat to flag the file as binary. */
-const PNG_MAGIC = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00]);
+const PNG_MAGIC = new Uint8Array([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00,
+]);
 
 /** Valid 3-line LFS pointer (v1 spec). insertions=3 passes isLfsCandidate(); blob starts with LFS_POINTER_MAGIC. */
 const LFS_POINTER_CONTENT =
@@ -51,9 +56,9 @@ const LFS_POINTER_CONTENT =
  *     reservedMeta=300 > 200; avail=0 → source becomes budget-exceeded
  */
 const TIGHT_E2E: BudgetThresholds = {
-  maxTotalTokens:       200,
-  maxLinesPerFile:        5,
-  tokensPerLine:         10,
+  maxTotalTokens: 200,
+  maxLinesPerFile: 5,
+  tokensPerLine: 10,
   tokensPerFileOverhead: 50,
 };
 
@@ -73,7 +78,9 @@ async function git(args: string[], cwd: string): Promise<string> {
   ]);
   if (exitCode !== 0) {
     const stderr = await new Response(proc.stderr).text();
-    throw new Error(`git ${args.join(" ")} failed (exit ${exitCode}): ${stderr.trim()}`);
+    throw new Error(
+      `git ${args.join(" ")} failed (exit ${exitCode}): ${stderr.trim()}`,
+    );
   }
   return stdout.trim();
 }
@@ -84,14 +91,22 @@ async function initRepo(dir: string, branch = "main"): Promise<void> {
   await git(["config", "user.name", "Test User"], dir);
 }
 
-async function stageFile(gitRoot: string, relPath: string, content: string): Promise<void> {
+async function stageFile(
+  gitRoot: string,
+  relPath: string,
+  content: string,
+): Promise<void> {
   const fullPath = join(gitRoot, relPath);
   await mkdir(join(fullPath, ".."), { recursive: true });
   await writeFile(fullPath, content);
   await git(["add", relPath], gitRoot);
 }
 
-async function stageBinary(gitRoot: string, relPath: string, data: Uint8Array): Promise<void> {
+async function stageBinary(
+  gitRoot: string,
+  relPath: string,
+  data: Uint8Array,
+): Promise<void> {
   const fullPath = join(gitRoot, relPath);
   await mkdir(join(fullPath, ".."), { recursive: true });
   await writeFile(fullPath, data);
@@ -113,13 +128,20 @@ async function commitFile(
  * valid TypeScript so they are never collapsed by diff compression.
  */
 function lines(count: number): string {
-  return Array.from({ length: count }, (_, i) => `const v${i + 1} = ${i + 1};`).join("\n") + "\n";
+  return (
+    Array.from({ length: count }, (_, i) => `const v${i + 1} = ${i + 1};`).join(
+      "\n",
+    ) + "\n"
+  );
 }
 
 /** Runs the full DiffCollector → FileClassifier → BudgetPlanner pipeline. */
-async function run(cwd: string, thresholds?: BudgetThresholds): Promise<DiffPlanResult> {
-  const runner     = new GitRunner({ cwd });
-  const summary    = await new DiffCollector(runner).collect();
+async function run(
+  cwd: string,
+  thresholds?: BudgetThresholds,
+): Promise<DiffPlanResult> {
+  const runner = new GitRunner({ cwd });
+  const summary = await new DiffCollector(runner).collect();
   const classified = await new FileClassifier(runner).classify(summary);
   return new BudgetPlanner(thresholds).plan(classified);
 }
@@ -150,7 +172,7 @@ describe("BudgetPlanner e2e — empty staging area", () => {
 
     expect(result.plans).toHaveLength(0);
     expect(result.estimate.totalFiles).toBe(0);
-    expect(result.estimate.contentFiles).toBe(0);
+    expect(result.estimate.nonNoiseFiles).toBe(0);
     expect(result.estimate.noiseFiles).toBe(0);
     expect(result.estimate.totalChangedLines).toBe(0);
     expect(result.estimate.maxSingleFileLines).toBe(0);
@@ -177,7 +199,7 @@ describe("BudgetPlanner e2e — noise files (binary / LFS pointer)", () => {
     expect(plan.degradationReason).toBe("noise");
     expect(plan.estimatedTokens).toBeNull();
     expect(result.estimate.noiseFiles).toBe(1);
-    expect(result.estimate.contentFiles).toBe(0);
+    expect(result.estimate.nonNoiseFiles).toBe(0);
     expect(result.fullDiffCount).toBe(0);
     expect(result.degradedCount).toBe(1);
   });
@@ -209,11 +231,13 @@ describe("BudgetPlanner e2e — noise files (binary / LFS pointer)", () => {
     const result = await run(repoDir, TIGHT_E2E);
 
     expect(result.estimate.noiseFiles).toBe(2);
-    expect(result.estimate.contentFiles).toBe(0);
+    expect(result.estimate.nonNoiseFiles).toBe(0);
     expect(result.estimate.totalChangedLines).toBe(0);
     expect(result.estimate.isWithinBudget).toBe(true);
-    expect(result.estimate.estimatedTokensIfFull).toBe(2 * TIGHT_E2E.tokensPerFileOverhead);
-    result.plans.forEach(p => {
+    expect(result.estimate.estimatedTokensIfFull).toBe(
+      2 * TIGHT_E2E.tokensPerFileOverhead,
+    );
+    result.plans.forEach((p) => {
       expect(p.mode).toBe("degraded");
       expect(p.degradationReason).toBe("noise");
     });
@@ -232,13 +256,13 @@ describe("BudgetPlanner e2e — noise files (binary / LFS pointer)", () => {
     const result = await run(repoDir, TIGHT_E2E);
 
     expect(result.estimate.noiseFiles).toBe(5);
-    expect(result.estimate.contentFiles).toBe(1);
+    expect(result.estimate.nonNoiseFiles).toBe(1);
 
     result.plans
-      .filter(p => p.file.isNoise)
-      .forEach(p => expect(p.degradationReason).toBe("noise"));
+      .filter((p) => p.file.isNoise)
+      .forEach((p) => expect(p.degradationReason).toBe("noise"));
 
-    const sourcePlan = result.plans.find(p => !p.file.isNoise);
+    const sourcePlan = result.plans.find((p) => !p.file.isNoise);
     expect(sourcePlan?.mode).toBe("degraded");
     expect(sourcePlan?.degradationReason).toBe("budget-exceeded");
   });
@@ -258,7 +282,7 @@ describe("BudgetPlanner e2e — source files within budget", () => {
     expect(result.plans[0]!.mode).toBe("full");
     expect(result.plans[0]!.estimatedTokens).toBeGreaterThan(0);
     expect(result.estimate.isWithinBudget).toBe(true);
-    expect(result.estimate.contentFiles).toBe(1);
+    expect(result.estimate.nonNoiseFiles).toBe(1);
     expect(result.estimate.noiseFiles).toBe(0);
   });
 
@@ -283,7 +307,7 @@ describe("BudgetPlanner e2e — source files within budget", () => {
 
     expect(result.plans).toHaveLength(1);
     expect(result.plans[0]!.mode).toBe("full");
-    expect(result.estimate.contentFiles).toBe(1);
+    expect(result.estimate.nonNoiseFiles).toBe(1);
   });
 
   test("two small source files within budget → both get full diff", async () => {
@@ -296,7 +320,7 @@ describe("BudgetPlanner e2e — source files within budget", () => {
     expect(result.plans).toHaveLength(2);
     expect(result.fullDiffCount).toBe(2);
     expect(result.degradedCount).toBe(0);
-    result.plans.forEach(p => expect(p.mode).toBe("full"));
+    result.plans.forEach((p) => expect(p.mode).toBe("full"));
   });
 });
 
@@ -315,7 +339,7 @@ describe("BudgetPlanner e2e — lockfiles", () => {
     expect(plan.mode).toBe("full");
     expect(plan.file.isNoise).toBe(false);
     if (!plan.file.isNoise) {
-      expect(plan.file.contentCategory).toBe("lockfile");
+      expect(plan.file.nonNoiseCategory).toBe("lockfile");
     }
   });
 
@@ -327,7 +351,7 @@ describe("BudgetPlanner e2e — lockfiles", () => {
     const plan = result.plans[0]!;
     expect(plan.mode).toBe("full");
     if (!plan.file.isNoise) {
-      expect(plan.file.contentCategory).toBe("lockfile");
+      expect(plan.file.nonNoiseCategory).toBe("lockfile");
     }
   });
 
@@ -341,10 +365,10 @@ describe("BudgetPlanner e2e — lockfiles", () => {
     expect(result.plans).toHaveLength(2);
     expect(result.fullDiffCount).toBe(2);
     expect(result.degradedCount).toBe(0);
-    expect(result.estimate.contentFiles).toBe(2);
+    expect(result.estimate.nonNoiseFiles).toBe(2);
 
     const categories = result.plans
-      .map(p => (p.file.isNoise ? "noise" : p.file.contentCategory))
+      .map((p) => (p.file.isNoise ? "noise" : p.file.nonNoiseCategory))
       .sort();
     expect(categories).toEqual(["lockfile", "source"]);
   });
@@ -364,12 +388,12 @@ describe("BudgetPlanner e2e — mixed noise + content files", () => {
 
     expect(result.plans).toHaveLength(2);
     expect(result.estimate.noiseFiles).toBe(1);
-    expect(result.estimate.contentFiles).toBe(1);
+    expect(result.estimate.nonNoiseFiles).toBe(1);
     expect(result.fullDiffCount).toBe(1);
     expect(result.degradedCount).toBe(1);
 
-    const noisePlan  = result.plans.find(p => p.file.isNoise);
-    const sourcePlan = result.plans.find(p => !p.file.isNoise);
+    const noisePlan = result.plans.find((p) => p.file.isNoise);
+    const sourcePlan = result.plans.find((p) => !p.file.isNoise);
 
     expect(noisePlan?.mode).toBe("degraded");
     expect(noisePlan?.degradationReason).toBe("noise");
@@ -394,18 +418,18 @@ describe("BudgetPlanner e2e — mixed noise + content files", () => {
 
     expect(result.plans).toHaveLength(4);
     expect(result.estimate.noiseFiles).toBe(2);
-    expect(result.estimate.contentFiles).toBe(2);
+    expect(result.estimate.nonNoiseFiles).toBe(2);
 
     result.plans
-      .filter(p => p.file.isNoise)
-      .forEach(p => {
+      .filter((p) => p.file.isNoise)
+      .forEach((p) => {
         expect(p.mode).toBe("degraded");
         expect(p.degradationReason).toBe("noise");
       });
 
     result.plans
-      .filter(p => !p.file.isNoise)
-      .forEach(p => {
+      .filter((p) => !p.file.isNoise)
+      .forEach((p) => {
         expect(p.mode).toBe("degraded");
         expect(p.degradationReason).toBe("budget-exceeded");
       });
@@ -421,21 +445,25 @@ describe("BudgetPlanner e2e — budget and oversized degradation (TIGHT_E2E)", (
     // 3 files [6L + 2L + 2L]: reservedMeta=150, totalIfFull=250 > 200 → else branch
     // 6 > 5 → oversized; availableDiffBudget=50; normalDiffTotal=40 ≤ 50 → Step 4b
     await stageFile(repoDir, "src/migration.ts", lines(6));
-    await stageFile(repoDir, "src/a.ts",         lines(2));
-    await stageFile(repoDir, "src/b.ts",         lines(2));
+    await stageFile(repoDir, "src/a.ts", lines(2));
+    await stageFile(repoDir, "src/b.ts", lines(2));
 
     const result = await run(repoDir, TIGHT_E2E);
 
     expect(result.plans).toHaveLength(3);
 
-    const migrationPlan = result.plans.find(p => p.file.file.path.includes("migration"));
-    const normalPlans   = result.plans.filter(p => !p.file.file.path.includes("migration"));
+    const migrationPlan = result.plans.find((p) =>
+      p.file.file.path.includes("migration"),
+    );
+    const normalPlans = result.plans.filter(
+      (p) => !p.file.file.path.includes("migration"),
+    );
 
     expect(migrationPlan?.mode).toBe("degraded");
     expect(migrationPlan?.degradationReason).toBe("oversized");
     expect(migrationPlan?.estimatedTokens).toBeNull();
 
-    normalPlans.forEach(p => {
+    normalPlans.forEach((p) => {
       expect(p.mode).toBe("full");
       expect(p.estimatedTokens).toBeGreaterThan(0);
     });
@@ -479,9 +507,11 @@ describe("BudgetPlanner e2e — budget and oversized degradation (TIGHT_E2E)", (
     expect(result.fullDiffCount).toBe(1);
     expect(result.degradedCount).toBe(2);
 
-    const budgetExceeded = result.plans.filter(p => p.degradationReason === "budget-exceeded");
+    const budgetExceeded = result.plans.filter(
+      (p) => p.degradationReason === "budget-exceeded",
+    );
     expect(budgetExceeded).toHaveLength(2);
-    budgetExceeded.forEach(p => expect(p.estimatedTokens).toBeNull());
+    budgetExceeded.forEach((p) => expect(p.estimatedTokens).toBeNull());
   });
 
   test("oversized + normals: normals pushed to greedy when diff budget is tight (Step 4c)", async () => {
@@ -491,9 +521,9 @@ describe("BudgetPlanner e2e — budget and oversized degradation (TIGHT_E2E)", (
     // availableDiffBudget = max(0, 200-200) = 0; 120 > 0 → greedy
     // 0+40 ≤ 0? NO → all normals budget-exceeded
     await stageFile(repoDir, "src/migration.ts", lines(6));
-    await stageFile(repoDir, "src/a.ts",         lines(4));
-    await stageFile(repoDir, "src/b.ts",         lines(4));
-    await stageFile(repoDir, "src/c.ts",         lines(4));
+    await stageFile(repoDir, "src/a.ts", lines(4));
+    await stageFile(repoDir, "src/b.ts", lines(4));
+    await stageFile(repoDir, "src/c.ts", lines(4));
 
     const result = await run(repoDir, TIGHT_E2E);
 
@@ -501,10 +531,14 @@ describe("BudgetPlanner e2e — budget and oversized degradation (TIGHT_E2E)", (
     expect(result.fullDiffCount).toBe(0);
     expect(result.degradedCount).toBe(4);
 
-    const oversizedPlan = result.plans.find(p => p.degradationReason === "oversized");
+    const oversizedPlan = result.plans.find(
+      (p) => p.degradationReason === "oversized",
+    );
     expect(oversizedPlan).toBeDefined();
 
-    const budgetExceeded = result.plans.filter(p => p.degradationReason === "budget-exceeded");
+    const budgetExceeded = result.plans.filter(
+      (p) => p.degradationReason === "budget-exceeded",
+    );
     expect(budgetExceeded).toHaveLength(3);
   });
 });
@@ -541,7 +575,7 @@ describe("BudgetPlanner e2e — renamed files", () => {
   });
 
   test("mixed: pure rename + modified file → renamedNoContentChangeCount counts only pure rename", async () => {
-    await commitFile(repoDir, "src/old.ts",  lines(2));
+    await commitFile(repoDir, "src/old.ts", lines(2));
     await commitFile(repoDir, "src/keep.ts", lines(2));
     await git(["mv", "src/old.ts", "src/new.ts"], repoDir);
     // Modify keep.ts (not a rename)
@@ -561,13 +595,13 @@ describe("BudgetPlanner e2e — initial commit (no parent)", () => {
   test("staging files on an empty repository → pipeline succeeds, all source files full", async () => {
     // No git commit has been made yet — this exercises the initial-commit code path
     await stageFile(repoDir, "src/main.ts", lines(2));
-    await stageFile(repoDir, "README.md",   "# Project\n");
+    await stageFile(repoDir, "README.md", "# Project\n");
 
     const result = await run(repoDir, TIGHT_E2E);
 
     expect(result.plans.length).toBeGreaterThan(0);
     expect(result.estimate.isWithinBudget).toBe(true);
-    result.plans.forEach(p => expect(p.mode).toBe("full"));
+    result.plans.forEach((p) => expect(p.mode).toBe("full"));
   });
 
   test("binary staged on empty repository → degraded/noise", async () => {
@@ -619,7 +653,9 @@ describe("BudgetPlanner e2e — aggregate estimate metrics", () => {
 
     const result = await run(repoDir, TIGHT_E2E);
 
-    expect(result.fullDiffCount + result.degradedCount).toBe(result.plans.length);
+    expect(result.fullDiffCount + result.degradedCount).toBe(
+      result.plans.length,
+    );
   });
 
   test("estimate.tokenBudget reflects the configured maxTotalTokens", async () => {
@@ -637,21 +673,21 @@ describe("BudgetPlanner e2e — aggregate estimate metrics", () => {
 
 describe("BudgetPlanner e2e — real-world commit patterns (production thresholds)", () => {
   test("feature commit: several new source files → all full with default thresholds", async () => {
-    await stageFile(repoDir, "src/auth/login.ts",  lines(20));
-    await stageFile(repoDir, "src/auth/token.ts",  lines(15));
-    await stageFile(repoDir, "src/auth/types.ts",  lines(10));
+    await stageFile(repoDir, "src/auth/login.ts", lines(20));
+    await stageFile(repoDir, "src/auth/token.ts", lines(15));
+    await stageFile(repoDir, "src/auth/types.ts", lines(10));
 
     // Default threshold: maxTotalTokens=16,000 — easily within budget for small files
     const result = await run(repoDir);
 
     expect(result.estimate.isWithinBudget).toBe(true);
     expect(result.estimate.tokenBudget).toBe(16_000);
-    result.plans.forEach(p => expect(p.mode).toBe("full"));
+    result.plans.forEach((p) => expect(p.mode).toBe("full"));
   });
 
   test("dependency update: lockfile + source → both content, both full", async () => {
     await stageFile(repoDir, "package-lock.json", lines(15));
-    await stageFile(repoDir, "src/app.ts",         lines(5));
+    await stageFile(repoDir, "src/app.ts", lines(5));
 
     const result = await run(repoDir);
 
@@ -659,27 +695,31 @@ describe("BudgetPlanner e2e — real-world commit patterns (production threshold
     expect(result.degradedCount).toBe(0);
 
     const lockfilePlan = result.plans.find(
-      p => !p.file.isNoise && p.file.file.path.includes("package-lock"),
+      (p) => !p.file.isNoise && p.file.file.path.includes("package-lock"),
     );
     if (lockfilePlan && !lockfilePlan.file.isNoise) {
-      expect(lockfilePlan.file.contentCategory).toBe("lockfile");
+      expect(lockfilePlan.file.nonNoiseCategory).toBe("lockfile");
     }
   });
 
   test("asset-only update: binary files only → all noise, no diff tokens, isWithinBudget=true", async () => {
     await commitFile(repoDir, "seed.ts", "export {};\n");
-    await stageBinary(repoDir, "assets/logo.png",    PNG_MAGIC);
-    await stageBinary(repoDir, "assets/favicon.ico", new Uint8Array([0x00, 0x00, 0x01, 0x00]));
+    await stageBinary(repoDir, "assets/logo.png", PNG_MAGIC);
+    await stageBinary(
+      repoDir,
+      "assets/favicon.ico",
+      new Uint8Array([0x00, 0x00, 0x01, 0x00]),
+    );
 
     const result = await run(repoDir);
 
     expect(result.estimate.noiseFiles).toBe(2);
-    expect(result.estimate.contentFiles).toBe(0);
+    expect(result.estimate.nonNoiseFiles).toBe(0);
     expect(result.estimate.totalChangedLines).toBe(0);
     expect(result.estimate.isWithinBudget).toBe(true);
     expect(result.fullDiffCount).toBe(0);
     expect(result.degradedCount).toBe(2);
-    result.plans.forEach(p => {
+    result.plans.forEach((p) => {
       expect(p.mode).toBe("degraded");
       expect(p.degradationReason).toBe("noise");
     });
@@ -697,6 +737,6 @@ describe("BudgetPlanner e2e — real-world commit patterns (production threshold
     expect(result.estimate.renamedNoContentChangeCount).toBe(2);
     expect(result.estimate.totalChangedLines).toBe(0);
     expect(result.estimate.isWithinBudget).toBe(true);
-    result.plans.forEach(p => expect(p.mode).toBe("full"));
+    result.plans.forEach((p) => expect(p.mode).toBe("full"));
   });
 });
