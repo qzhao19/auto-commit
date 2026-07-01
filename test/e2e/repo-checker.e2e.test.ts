@@ -32,7 +32,9 @@ async function git(args: string[], cwd: string): Promise<string> {
   const exitCode = await proc.exited;
   if (exitCode !== 0) {
     const stderr = await new Response(proc.stderr).text();
-    throw new Error(`git ${args.join(" ")} failed (exit ${exitCode}): ${stderr.trim()}`);
+    throw new Error(
+      `git ${args.join(" ")} failed (exit ${exitCode}): ${stderr.trim()}`,
+    );
   }
   return stdout.trim();
 }
@@ -96,7 +98,7 @@ let repoDir: string;
 
 beforeEach(async () => {
   const tmp = await mkdtemp(join(tmpdir(), "repo-checker-e2e-"));
-  repoDir = await realpath(tmp);  // resolve macOS /var → /private/var symlink
+  repoDir = await realpath(tmp); // resolve macOS /var → /private/var symlink
 });
 
 afterEach(async () => {
@@ -106,7 +108,6 @@ afterEach(async () => {
 // ── Tests ──────
 
 describe("RepoChecker e2e", () => {
-
   // ── Success path ───
 
   describe("check() — success path", () => {
@@ -118,7 +119,7 @@ describe("RepoChecker e2e", () => {
       const result = await checker.check();
 
       expect(result.context).toBeDefined();
-      expect(result.finalStep).toBe("detached-head-check");
+      expect(result.finalStep).toBe("complete");
     });
 
     test("gitDir resolves to the absolute .git directory path", async () => {
@@ -135,7 +136,9 @@ describe("RepoChecker e2e", () => {
       await initRepo(repoDir);
       await stageFile(repoDir, "src/index.ts");
       // Runner uses subdirectory as cwd; git rev-parse --git-dir returns a relative path
-      const checker = new RepoChecker(new GitRunner({ cwd: join(repoDir, "src") }));
+      const checker = new RepoChecker(
+        new GitRunner({ cwd: join(repoDir, "src") }),
+      );
 
       const result = await checker.check();
 
@@ -212,14 +215,14 @@ describe("RepoChecker e2e", () => {
       ]);
     });
 
-    test("finalStep is 'detached-head-check' when all steps complete", async () => {
+    test("finalStep is 'complete' when all steps complete", async () => {
       await initRepo(repoDir);
       await stageFile(repoDir, "file.txt");
       const checker = new RepoChecker(new GitRunner({ cwd: repoDir }));
 
       const result = await checker.check();
 
-      expect(result.finalStep).toBe("detached-head-check");
+      expect(result.finalStep).toBe("complete");
     });
   });
 
@@ -258,7 +261,6 @@ describe("RepoChecker e2e", () => {
       const checker = new RepoChecker(new GitRunner({ cwd: repoDir }));
 
       await expect(checker.check()).resolves.toHaveProperty("context");
-
     });
   });
 
@@ -330,7 +332,9 @@ describe("RepoChecker e2e", () => {
       await Bun.write(lockPath, "");
       const checker = new RepoChecker(new GitRunner({ cwd: repoDir }));
 
-      await expect(checker.check()).rejects.toMatchObject({ code: GitCode.LOCK_FILE_EXISTS });
+      await expect(checker.check()).rejects.toMatchObject({
+        code: GitCode.LOCK_FILE_EXISTS,
+      });
 
       // Remove lock and retry
       await rm(lockPath);
