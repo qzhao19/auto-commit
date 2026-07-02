@@ -102,13 +102,13 @@ describe("RepoChecker", () => {
       ]);
     });
 
-    test("finalStep equals 'detached-head-check' when all steps succeed", async () => {
+    test("finalStep equals 'complete' when all steps succeed", async () => {
       mockBunFileExists(false);
       const checker = new RepoChecker(makeRunner(...happyResponses()));
 
       const result = await checker.check();
 
-      expect(result.finalStep).toBe("detached-head-check");
+      expect(result.finalStep).toBe("complete");
     });
 
     test("isInitialCommit is true when rev-parse HEAD exits with code 128", async () => {
