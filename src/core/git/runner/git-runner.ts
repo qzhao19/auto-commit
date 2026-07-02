@@ -21,7 +21,10 @@ export class GitRunner {
    * - Pass allowedExitCodes for commands with semantic non-zero exits
    *   (e.g. `git diff --cached --quiet` returns 1 when staging is non-empty).
    */
-  public async run(args: string[], options?: GitRunOptions): Promise<GitRunResult> {
+  public async run(
+    args: string[],
+    options?: GitRunOptions,
+  ): Promise<GitRunResult> {
     const allowedExitCodes = options?.allowedExitCodes ?? [0];
     const result = await this.runRaw(args, options);
 
@@ -29,8 +32,7 @@ export class GitRunner {
       const reason = result.stderr || result.stdout || "unknown git error";
       throw new GitError({
         code: GitCode.COMMAND_FAILED,
-        message:
-          `Git command failed with exit code ${result.exitCode}: ${result.command}\n${reason}`,
+        message: `Git command failed with exit code ${result.exitCode}: ${result.command}\n${reason}`,
         details: {
           args: result.args,
           cwd: result.cwd,
@@ -51,7 +53,10 @@ export class GitRunner {
    * - Runs git and always returns exit code/output.
    * - Throws GitError(COMMAND_FAILED) only when spawn itself fails.
    */
-  private async runRaw(args: string[], options?: GitRunOptions): Promise<GitRunResult> {
+  private async runRaw(
+    args: string[],
+    options?: GitRunOptions,
+  ): Promise<GitRunResult> {
     const cwd = options?.cwd ?? this.defaultCwd;
     const commandArgs = ["git", ...args];
 
@@ -91,7 +96,8 @@ export class GitRunner {
       proc.kill();
       throw new GitError({
         code: GitCode.COMMAND_FAILED,
-        message: "Failed to read output of git command: " + commandArgs.join(" "),
+        message:
+          "Failed to read output of git command: " + commandArgs.join(" "),
         details: { args, cwd },
         cause: error,
       });
@@ -115,7 +121,8 @@ export class GitRunner {
       return "";
     }
 
-    // With stdout/stderr set to "pipe", number here indicates misconfigured spawn stdio mode.
+    // With stdout/stderr set to "pipe", number here indicates 
+    // misconfigured spawn stdio mode.
     if (typeof stream === "number") {
       throw new GitError({
         code: GitCode.COMMAND_FAILED,
