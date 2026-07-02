@@ -42,6 +42,44 @@ async function isReachable(url: string, timeoutMs = 3000): Promise<boolean> {
   }
 }
 
+async function getOllamaModels(
+  baseUrl: string,
+  timeoutMs: number = 5000,
+): Promise<string[] | null> {
+  try {
+    const response = await fetch(`${baseUrl}/api/tags`, {
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+
+    if (!response.ok) return null;
+
+    const data = (await response.json()) as { models?: Array<{ name: string }> };
+    if (!data.models || !Array.isArray(data.models)) return null;
+       
+    return data.models.map((model) => model.name);
+  } catch {
+    return null;
+  }
+}
+
+async function selectOllamaModel(baseUrl: string): Promise<string | null> {
+  const envModel = process.env.E2E_OLLAMA_MODEL;
+  const installedModels = await getOllamaModels(baseUrl);
+  
+  if (!installedModels || installedModels.length === 0) {
+    return null;
+  }
+  
+  // If env var is set and model exists, use it
+  if (envModel && installedModels.includes(envModel)) {
+    return envModel;
+  }
+  
+  // Otherwise, use the first available model
+  return installedModels[0] ?? null;
+}
+
+
 // ── OpenAI ────
 
 const OPENAI_API_KEY = process.env.E2E_OPENAI_API_KEY ?? "";
@@ -192,7 +230,7 @@ const DEEPSEEK_MODEL   = process.env.E2E_DEEPSEEK_MODEL ?? "deepseek-chat";
 // ── Ollama ────
 
 const OLLAMA_BASE_URL = process.env.E2E_OLLAMA_BASE_URL ?? "http://localhost:11434";
-const OLLAMA_MODEL    = process.env.E2E_OLLAMA_MODEL ?? "llama3";
+// const OLLAMA_MODEL    = process.env.E2E_OLLAMA_MODEL ?? "gemma:2b";
 
 describe("E2E: Ollama provider", () => {
   test(
@@ -204,11 +242,19 @@ describe("E2E: Ollama provider", () => {
         return;
       }
 
+      const model = await selectOllamaModel(OLLAMA_BASE_URL);
+      if (!model) {
+        console.log(
+          "[e2e] skipped: No Ollama models installed. Run 'ollama pull <model>' first.",
+        );
+        return;
+      }
+
       const provider = await createProvider({
         argv: [],
         env: makeEnv({
           AUTOCOMMIT_PROVIDER: "ollama",
-          AUTOCOMMIT_MODEL: OLLAMA_MODEL,
+          AUTOCOMMIT_MODEL: model,
           AUTOCOMMIT_BASE_URL: `${OLLAMA_BASE_URL}/v1`,
           // Ollama do not need apiKey
         }),
@@ -234,11 +280,19 @@ describe("E2E: Ollama provider", () => {
         return;
       }
 
+      const model = await selectOllamaModel(OLLAMA_BASE_URL);
+      if (!model) {
+        console.log(
+          "[e2e] skipped: No Ollama models installed. Run 'ollama pull <model>' first.",
+        );
+        return;
+      }
+
       const provider = await createProvider({
         argv: [],
         env: makeEnv({
           AUTOCOMMIT_PROVIDER: "ollama",
-          AUTOCOMMIT_MODEL: OLLAMA_MODEL,
+          AUTOCOMMIT_MODEL: model,
           AUTOCOMMIT_BASE_URL: `${OLLAMA_BASE_URL}/v1`,
           AUTOCOMMIT_API_KEY: "any-placeholder-key",
         }),
