@@ -5,7 +5,10 @@ import { join } from "node:path";
 import { GitCode, GitError } from "../../src/shared/exceptions/index";
 import { StateDetector } from "../../src/core/git/context/state-detector";
 import type { GitRunner } from "../../src/core/git/runner/index";
-import type { GitInternalOpState, GitRunResult } from "../../src/shared/types/index";
+import type {
+  GitInternalOpState,
+  GitRunResult,
+} from "../../src/shared/types/index";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -71,7 +74,9 @@ function unusedRunner(): {
   runMock: ReturnType<typeof jest.fn>;
 } {
   const runMock = jest.fn(async () => {
-    throw new Error("runner.run() should not have been called in this scenario");
+    throw new Error(
+      "runner.run() should not have been called in this scenario",
+    );
   });
 
   return {
@@ -80,11 +85,18 @@ function unusedRunner(): {
   };
 }
 
-async function writeGitFile(gitDir: string, filename: string, content: string): Promise<void> {
+async function writeGitFile(
+  gitDir: string,
+  filename: string,
+  content: string,
+): Promise<void> {
   await Bun.write(join(gitDir, filename), content + "\n");
 }
 
-async function makeRebaseDir(gitDir: string, type: "merge" | "apply"): Promise<string> {
+async function makeRebaseDir(
+  gitDir: string,
+  type: "merge" | "apply",
+): Promise<string> {
   const dir = join(gitDir, type === "merge" ? "rebase-merge" : "rebase-apply");
   await mkdir(dir, { recursive: true });
   return dir;
@@ -196,17 +208,21 @@ describe("StateDetector", () => {
       ]);
     });
 
-    test("finalStep is 'revert-detect' when all steps run without finding anything", async () => {
+    test("finalStep is 'complete' when all steps run without finding anything", async () => {
       const { runner } = unusedRunner();
       const detector = new StateDetector(gitDir, runner);
 
-      expect((await detector.detect()).finalStep).toBe("revert-detect");
+      expect((await detector.detect()).finalStep).toBe("complete");
     });
   });
 
   describe("detect() — bisect (hard exit)", () => {
     test("throws GitError(BISECT_IN_PROGRESS) when BISECT_LOG exists", async () => {
-      await writeGitFile(gitDir, "BISECT_LOG", "git bisect start\n# bad: abc123");
+      await writeGitFile(
+        gitDir,
+        "BISECT_LOG",
+        "git bisect start\n# bad: abc123",
+      );
       const { runner } = unusedRunner();
       const detector = new StateDetector(gitDir, runner);
 
