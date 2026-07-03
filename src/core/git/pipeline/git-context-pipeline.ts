@@ -8,14 +8,15 @@ import type {
   GitPipelineStep,
   GitRepoPrecheckContext,
 } from "../../../shared/types/index";
+import { DEFAULT_BUDGET_THRESHOLDS } from "../../../shared/constants/index";
 
 export class GitContextPipeline {
   private readonly runner: GitRunner;
-  private readonly thresholds: BudgetThresholds | undefined;
+  private readonly thresholds: BudgetThresholds;
 
   constructor(runner: GitRunner, thresholds?: BudgetThresholds) {
     this.runner = runner;
-    this.thresholds = thresholds;
+    this.thresholds = thresholds ?? DEFAULT_BUDGET_THRESHOLDS;
   }
 
   public async execute(): Promise<GitPipelineResult> {
@@ -31,21 +32,18 @@ export class GitContextPipeline {
     completedSteps.push("state-detect");
 
     if (stateResult.state.status !== "clean") {
-      return this.collectInternalOp(
-        stateResult.state,
-        completedSteps,
+      const commitMessage = this.extractSpecialOpMessage(
+        stateResult.state
       );
+      return {
+        route: "interrupted",
+        gitState: stateResult.state,
+        commitMessage,
+        completedSteps
+      };
     }
 
     return this.collectCleanContext(precheckResult.context, completedSteps);
-  }
-
-  private collectInternalOp(
-    state: Exclude<GitInternalOpState, { status: "clean" }>,
-    completedSteps: GitPipelineStep[],
-  ): GitPipelineResult {
-    const commitMessage = this.extractSpecialOpMessage(state);
-    return { route: "internal-op", commitMessage, completedSteps };
   }
 
   private async collectCleanContext(
@@ -71,9 +69,9 @@ export class GitContextPipeline {
     completedSteps.push("diff-fetch");
 
     return {
-      route: "clean",
+      route: "full",
       repoContext,
-      gitState: { status: "clean" },
+      // gitState: { status: "clean" },
       diffSummary,
       diffPlan,
       diffTexts,
