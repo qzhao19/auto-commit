@@ -13,14 +13,14 @@ export type GitPipelineStep =
 
 export type GitPipelineResult =
   | {
-      readonly route: "internal-op";
+      readonly route: "interrupted";
+      readonly gitState: Exclude<GitInternalOpState, { status: "clean" }>;
       readonly commitMessage: string;
       readonly completedSteps: GitPipelineStep[];
     }
   | {
-      readonly route: "clean";
+      readonly route: "full";
       readonly repoContext: GitRepoPrecheckContext;
-      readonly gitState: GitInternalOpState;
       readonly diffSummary: StagedDiffSummary;
       readonly diffPlan: DiffPlanResult;
       readonly diffTexts: ReadonlyMap<string, string>;
