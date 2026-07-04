@@ -3,7 +3,10 @@ import type {
   AssembledPrompt,
   PromptAssemblyInput,
 } from "../../../shared/types/llm/index";
-import type { GitInternalOpState, FileDiffPlan } from "../../../shared/types/git/index";
+import type {
+  GitInternalOpState,
+  FileDiffPlan,
+} from "../../../shared/types/git/index";
 
 /** Rough tokens-per-character ratio used for budget estimation. */
 const CHARS_PER_TOKEN = 4;
@@ -22,7 +25,7 @@ export class PromptAssembler {
   public assemble(input: PromptAssemblyInput): AssembledPrompt {
     const messages: readonly LLMMessage[] = [
       { role: "system", content: this.buildSystemMessage() },
-      { role: "user",   content: this.buildUserMessage(input) },
+      { role: "user", content: this.buildUserMessage(input) },
     ];
 
     return { messages, tokenEstimate: this.estimateTokens(messages) };
@@ -68,16 +71,13 @@ export class PromptAssembler {
     return sections.join("\n\n");
   }
 
-  // ── Section builders 
+  // ── Section builders
 
   private buildRepoSection(input: PromptAssemblyInput): string {
     const { repoContext } = input;
     const branch = repoContext.currentBranch ?? "(detached HEAD)";
 
-    const lines = [
-      "## Repository",
-      `Branch: ${branch}`,
-    ];
+    const lines = ["## Repository", `Branch: ${branch}`];
 
     if (repoContext.isInitialCommit) {
       lines.push("Initial commit: yes (repository has no prior commits)");
@@ -127,7 +127,9 @@ export class PromptAssembler {
       case "rebase": {
         const lines = [`## Git operation: rebase (${state.rebaseType})`];
         if (state.originalMessage !== null) {
-          lines.push(`Original message:\n${this.indent(state.originalMessage)}`);
+          lines.push(
+            `Original message:\n${this.indent(state.originalMessage)}`,
+          );
         }
         return lines.join("\n");
       }
@@ -141,35 +143,42 @@ export class PromptAssembler {
   }
 
   private buildSummarySection(input: PromptAssemblyInput): string {
-    const { diffSummary, diffPlan: { estimate, fullDiffCount, degradedCount } } = input;
+    const {
+      diffSummary,
+      diffPlan: { estimate, fullDiffCount, degradedCount },
+    } = input;
 
     const lines = [
       "## Summary",
       `${diffSummary.totalFiles} file(s) changed — +${diffSummary.totalInsertions} insertions, -${diffSummary.totalDeletions} deletions`,
     ];
 
-    if (estimate.contentFiles > 0 && estimate.noiseFiles > 0) {
+    if (estimate.nonNoiseFiles > 0 && estimate.noiseFiles > 0) {
       lines.push(
-        `${estimate.contentFiles} content file(s), ${estimate.noiseFiles} noise file(s) ` +
-        "(binary/submodule/lfs — diff omitted)",
+        `${estimate.nonNoiseFiles} content file(s), ${estimate.noiseFiles} noise file(s) ` +
+          "(binary/submodule/lfs — diff omitted)",
       );
     } else if (estimate.noiseFiles > 0) {
-      lines.push(`${estimate.noiseFiles} noise file(s) (binary/submodule/lfs — diff omitted)`);
+      lines.push(
+        `${estimate.noiseFiles} noise file(s) (binary/submodule/lfs — diff omitted)`,
+      );
     }
 
     if (estimate.renamedNoContentChangeCount > 0) {
-      lines.push(`${estimate.renamedNoContentChangeCount} rename(s) with no content change`);
+      lines.push(
+        `${estimate.renamedNoContentChangeCount} rename(s) with no content change`,
+      );
     }
 
     if (!estimate.isWithinBudget) {
       lines.push(
         `Token budget exceeded: ${fullDiffCount} file(s) with full diff, ` +
-        `${degradedCount} file(s) omitted`,
+          `${degradedCount} file(s) omitted`,
       );
     }
 
     if (diffSummary.hasBinaryFiles) lines.push("Contains binary files");
-    if (diffSummary.hasSubmodules)  lines.push("Contains submodule changes");
+    if (diffSummary.hasSubmodules) lines.push("Contains submodule changes");
 
     return lines.join("\n");
   }
@@ -180,13 +189,13 @@ export class PromptAssembler {
     for (const plan of input.diffPlan.plans) {
       const sf = plan.file.file;
 
-      const modeLabel = plan.mode === "full"
-        ? "[full diff below]"
-        : `[omitted: ${plan.degradationReason ?? "degraded"}]`;
+      const modeLabel =
+        plan.mode === "full"
+          ? "[full diff below]"
+          : `[omitted: ${plan.degradationReason ?? "degraded"}]`;
 
-      const pathLabel = sf.oldPath !== null
-        ? `${sf.oldPath} → ${sf.path}`
-        : sf.path;
+      const pathLabel =
+        sf.oldPath !== null ? `${sf.oldPath} → ${sf.path}` : sf.path;
 
       const statParts: string[] = [sf.changeType];
       if (sf.insertions !== null || sf.deletions !== null) {
@@ -198,9 +207,11 @@ export class PromptAssembler {
 
       const categoryLabel = plan.file.isNoise
         ? plan.file.noiseCategory
-        : plan.file.contentCategory;
+        : plan.file.nonNoiseCategory;
 
-      lines.push(`${modeLabel} ${pathLabel}  (${statParts.join(", ")})  [${categoryLabel}]`);
+      lines.push(
+        `${modeLabel} ${pathLabel}  (${statParts.join(", ")})  [${categoryLabel}]`,
+      );
     }
 
     return lines.join("\n");
@@ -208,19 +219,23 @@ export class PromptAssembler {
 
   private buildDiffSection(input: PromptAssemblyInput): string | null {
     const views = this.resolveFileViews(input);
-    const withDiff = views.filter(v => v.diffText !== null && v.diffText.length > 0);
+    const withDiff = views.filter(
+      (v) => v.diffText !== null && v.diffText.length > 0,
+    );
 
     if (withDiff.length === 0) return null;
 
     const parts = ["## Diffs"];
     for (const { plan, diffText } of withDiff) {
-      parts.push(`### ${plan.file.file.path}\n\`\`\`diff\n${diffText!}\n\`\`\``);
+      parts.push(
+        `### ${plan.file.file.path}\n\`\`\`diff\n${diffText!}\n\`\`\``,
+      );
     }
 
     return parts.join("\n\n");
   }
 
-  // ── Helpers 
+  // ── Helpers
 
   /**
    * Joins every full-mode FileDiffPlan with the resolved diff text from diffTexts.
@@ -229,15 +244,18 @@ export class PromptAssembler {
    */
   private resolveFileViews(input: PromptAssemblyInput): FileView[] {
     return input.diffPlan.plans
-      .filter(plan => plan.mode === "full")
-      .map(plan => ({
+      .filter((plan) => plan.mode === "full")
+      .map((plan) => ({
         plan,
         diffText: input.diffTexts.get(plan.file.file.path) ?? null,
       }));
   }
 
   private indent(text: string, prefix = "  "): string {
-    return text.split("\n").map(line => prefix + line).join("\n");
+    return text
+      .split("\n")
+      .map((line) => prefix + line)
+      .join("\n");
   }
 
   /**
