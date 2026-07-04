@@ -107,7 +107,7 @@ const MOCK_DIFF_TEXTS = new Map([
   ],
 ]);
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Helpers ───
 
 const MOCK_RUNNER = { run: jest.fn() } as unknown as GitRunner;
 
@@ -150,7 +150,7 @@ function setupInterruptedPath(
   } as unknown as Awaited<ReturnType<StateDetector["detect"]>>);
 }
 
-// ── Spy management ────────────────────────────────────────────────────────────
+// ── Spy management ────
 
 let checkSpy: SpyOf<RepoChecker["check"]>;
 let detectSpy: SpyOf<StateDetector["detect"]>;
@@ -847,7 +847,7 @@ describe("GitContextPipeline.execute() — edge cases", () => {
     const r1 = await pipeline.execute();
     const r2 = await pipeline.execute();
 
-    expect(r1.completedSteps).not.toBe(r2.completedSteps); // different array instances
+    expect(r1.completedSteps).not.toBe(r2.completedSteps);
     expect(r1.completedSteps).toHaveLength(6);
     expect(r2.completedSteps).toHaveLength(6);
   });
