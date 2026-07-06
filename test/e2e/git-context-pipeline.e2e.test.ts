@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { GitCode, GitError } from "../../src/shared/exceptions/index";
 import { GitRunner } from "../../src/core/git/runner/index";
-import { GitContextPipeline } from "../../src/core/git/pipeline/git-context-pipeline";
+import { GitContextPipeline } from "../../src/core/git/pipeline/git-pipeline";
 import type { BudgetThresholds } from "../../src/shared/types/index";
 
 // ── Git process helpers ───────────────────────────────────────────────────────
