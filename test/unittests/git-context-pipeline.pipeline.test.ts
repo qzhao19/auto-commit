@@ -11,7 +11,7 @@ import {
 import { GitCode, GitError } from "../../src/shared/exceptions/index";
 import type { BudgetThresholds } from "../../src/shared/types/index";
 import type { GitRunner } from "../../src/core/git/runner/index";
-import { GitContextPipeline } from "../../src/core/git/pipeline/git-context-pipeline";
+import { GitContextPipeline } from "../../src/core/git/pipeline/git-pipeline";
 import { RepoChecker } from "../../src/core/git/context/repo-checker";
 import { StateDetector } from "../../src/core/git/context/state-detector";
 import { DiffCollector } from "../../src/core/git/diff/diff-collector";
