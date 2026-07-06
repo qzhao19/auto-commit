@@ -11,5 +11,5 @@ export type PromptAssemblyInput = GitPipelineResult;
 
 export interface AssembledPrompt {
   readonly messages: readonly LLMMessage[];
-  readonly tokenEstimate: number; // Includes system message overhead not in diffPlan.estimate
+  readonly tokenEstimate: number;
 }
