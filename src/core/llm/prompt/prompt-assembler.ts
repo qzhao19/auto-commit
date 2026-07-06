@@ -4,18 +4,26 @@ import type {
   PromptAssemblyInput,
 } from "../../../shared/types/llm/index";
 import type {
-  GitInternalOpState,
   FileDiffPlan,
+  GitInternalOpState,
 } from "../../../shared/types/git/index";
 
-/** Rough tokens-per-character ratio used for budget estimation. */
-const CHARS_PER_TOKEN = 4;
+/**
+ * Pure English ≈ 4.0 chars/token, diffs with special characters ≈ 2.0–2.5.
+ * Using 3.0 provides a safety margin so actual token count does not exceed
+ * the estimate at LLM API call time.
+ */
+const CHARS_PER_TOKEN = 3;
 
 /** Assembler-private join: one file's budget plan + its resolved diff text. */
 interface FileView {
   readonly plan: FileDiffPlan;
   readonly diffText: string | null;
 }
+
+type FullInput = Extract<PromptAssemblyInput, { route: "full" }>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type InterruptedInput = Extract<PromptAssemblyInput, { route: "interrupted" }>;
 
 export class PromptAssembler {
   /**
@@ -35,7 +43,7 @@ export class PromptAssembler {
 
   private buildSystemMessage(): string {
     return [
-      "You are an expert software developer writing Git commit messages.",
+      "You are an expert software engineer writing Git commit messages.",
       "Follow the Conventional Commits 1.0.0 specification.",
       "",
       "Format:",
@@ -52,18 +60,26 @@ export class PromptAssembler {
     ].join("\n");
   }
 
-  // ── User message ─
+  // ── User message ──
 
   private buildUserMessage(input: PromptAssemblyInput): string {
-    const sections: string[] = [];
+    // Interrupted route: git op context + suggested message for LLM to refine
+    if (input.route === "interrupted") {
+      const sections: string[] = [
+        this.buildGitOpSection(input.gitState),
+        `## Suggested message\n${this.indent(input.commitMessage)}`,
+        "Refine the suggested message if needed, or output it verbatim if it is already correct.",
+      ];
 
-    sections.push(this.buildRepoSection(input));
+      return sections.join("\n\n");
+    }
 
-    const opSection = this.buildGitOpSection(input.gitState);
-    if (opSection !== null) sections.push(opSection);
-
-    sections.push(this.buildSummarySection(input));
-    sections.push(this.buildFileManifest(input));
+    // Full route: repo context + diff summary + file manifest + diffs
+    const sections: string[] = [
+      this.buildRepoSection(input),
+      this.buildSummarySection(input),
+      this.buildFileManifest(input)
+    ];
 
     const diffSection = this.buildDiffSection(input);
     if (diffSection !== null) sections.push(diffSection);
@@ -71,9 +87,9 @@ export class PromptAssembler {
     return sections.join("\n\n");
   }
 
-  // ── Section builders
+  // ── Section builders ──
 
-  private buildRepoSection(input: PromptAssemblyInput): string {
+  private buildRepoSection(input: FullInput): string {
     const { repoContext } = input;
     const branch = repoContext.currentBranch ?? "(detached HEAD)";
 
@@ -89,11 +105,14 @@ export class PromptAssembler {
     return lines.join("\n");
   }
 
-  private buildGitOpSection(state: GitInternalOpState): string | null {
+  /**
+   * Builds the git operation context section for interrupted-route prompts.
+   * The state is always non-clean here — the interrupted route guarantees it.
+   */
+  private buildGitOpSection(
+    state: Exclude<GitInternalOpState, { status: "clean" }>,
+  ): string {
     switch (state.status) {
-      case "clean":
-        return null;
-
       case "merge": {
         const lines = ["## Git operation: merge"];
         if (state.mergeMessage !== null) {
@@ -135,14 +154,13 @@ export class PromptAssembler {
       }
 
       default: {
-        // Exhaustiveness check — TypeScript will flag this if a new status is added
         const _: never = state;
-        return null;
+        throw new Error("Unreachable: unknown special-op state");
       }
     }
   }
 
-  private buildSummarySection(input: PromptAssemblyInput): string {
+  private buildSummarySection(input: FullInput): string {
     const {
       diffSummary,
       diffPlan: { estimate, fullDiffCount, degradedCount },
@@ -183,7 +201,7 @@ export class PromptAssembler {
     return lines.join("\n");
   }
 
-  private buildFileManifest(input: PromptAssemblyInput): string {
+  private buildFileManifest(input: FullInput): string {
     const lines = ["## Files"];
 
     for (const plan of input.diffPlan.plans) {
@@ -217,38 +235,38 @@ export class PromptAssembler {
     return lines.join("\n");
   }
 
-  private buildDiffSection(input: PromptAssemblyInput): string | null {
-    const views = this.resolveFileViews(input);
-    const withDiff = views.filter(
-      (v) => v.diffText !== null && v.diffText.length > 0,
-    );
-
-    if (withDiff.length === 0) return null;
-
+  private buildDiffSection(input: FullInput): string | null {
     const parts = ["## Diffs"];
-    for (const { plan, diffText } of withDiff) {
-      parts.push(
-        `### ${plan.file.file.path}\n\`\`\`diff\n${diffText!}\n\`\`\``,
-      );
+
+    for (const { plan, diffText } of this.resolveFileViews(input)) {
+      if (diffText !== null && diffText.length > 0) {
+        parts.push(
+          `### ${plan.file.file.path}\n\`\`\`diff\n${diffText}\n\`\`\``,
+        );
+      }
     }
 
-    return parts.join("\n\n");
+    return parts.length > 1 ? parts.join("\n\n") : null;
   }
 
-  // ── Helpers
+  // ── Helpers ──
 
   /**
    * Joins every full-mode FileDiffPlan with the resolved diff text from diffTexts.
    * A plan that has no entry in diffTexts (e.g. pure rename, zero content change)
    * gets diffText: null and will be omitted from the diff section.
    */
-  private resolveFileViews(input: PromptAssemblyInput): FileView[] {
-    return input.diffPlan.plans
-      .filter((plan) => plan.mode === "full")
-      .map((plan) => ({
-        plan,
-        diffText: input.diffTexts.get(plan.file.file.path) ?? null,
-      }));
+  private resolveFileViews(input: FullInput): FileView[] {
+    const views: FileView[] = [];
+    for (const plan of input.diffPlan.plans) {
+      if (plan.mode === "full") {
+        views.push({
+          plan,
+          diffText: input.diffTexts.get(plan.file.file.path) ?? null,
+        });
+      }
+    }
+    return views;
   }
 
   private indent(text: string, prefix = "  "): string {
@@ -259,7 +277,7 @@ export class PromptAssembler {
   }
 
   /**
-   * Rough token estimate: total characters ÷ 4, plus a small per-message
+   * Rough token estimate: total characters ÷ 3, plus a small per-message
    * overhead for role labels and API framing tokens.
    */
   private estimateTokens(messages: readonly LLMMessage[]): number {
