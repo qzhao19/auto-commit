@@ -4,7 +4,6 @@ import type {
   PromptAssemblyInput,
 } from "../../../shared/types/llm/index";
 import type {
-  FileDiffPlan,
   GitInternalOpState,
 } from "../../../shared/types/git/index";
 
@@ -14,12 +13,6 @@ import type {
  * the estimate at LLM API call time.
  */
 const CHARS_PER_TOKEN = 3;
-
-/** Assembler-private join: one file's budget plan + its resolved diff text. */
-interface FileView {
-  readonly plan: FileDiffPlan;
-  readonly diffText: string | null;
-}
 
 type FullInput = Extract<PromptAssemblyInput, { route: "full" }>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -54,8 +47,6 @@ export class PromptAssembler {
       "  - type: feat | fix | docs | style | refactor | perf | test | chore | build | ci",
       "  - description: ≤72 characters, imperative mood, lowercase, no trailing period",
       "  - body: explain WHY not WHAT; wrap at 72 characters",
-      "  - merge/squash: summarise what was merged and why",
-      "  - cherry-pick/revert: reference the original commit subject",
       "  - Output ONLY the commit message — no explanation, no code fences",
     ].join("\n");
   }
@@ -78,7 +69,7 @@ export class PromptAssembler {
     const sections: string[] = [
       this.buildRepoSection(input),
       this.buildSummarySection(input),
-      this.buildFileManifest(input)
+      this.buildFileManifest(input),
     ];
 
     const diffSection = this.buildDiffSection(input);
@@ -121,6 +112,8 @@ export class PromptAssembler {
         return lines.join("\n");
       }
 
+      // SQUASH_MSG must be written when creating a squash-merge, 
+      // it cannot be empty
       case "squash-merge":
         return [
           "## Git operation: squash merge",
@@ -207,22 +200,28 @@ export class PromptAssembler {
     for (const plan of input.diffPlan.plans) {
       const sf = plan.file.file;
 
+      // 1. Check if this file could get full diff
       const modeLabel =
         plan.mode === "full"
           ? "[full diff below]"
           : `[omitted: ${plan.degradationReason ?? "degraded"}]`;
 
+      // 2. Process renaming of filename 
       const pathLabel =
         sf.oldPath !== null ? `${sf.oldPath} → ${sf.path}` : sf.path;
 
+      // 3. Change statistics
       const statParts: string[] = [sf.changeType];
       if (sf.insertions !== null || sf.deletions !== null) {
         statParts.push(`+${sf.insertions ?? 0} -${sf.deletions ?? 0}`);
       }
+
+      // 4. Add possible similarityScore
       if (sf.similarityScore !== null) {
         statParts.push(`${sf.similarityScore}% similar`);
       }
 
+      // 5. Add file classification label
       const categoryLabel = plan.file.isNoise
         ? plan.file.noiseCategory
         : plan.file.nonNoiseCategory;
@@ -235,38 +234,24 @@ export class PromptAssembler {
     return lines.join("\n");
   }
 
+  /**
+   * Joins every full-mode FileDiffPlan with the resolved diff text from diffTexts.
+   */
   private buildDiffSection(input: FullInput): string | null {
     const parts = ["## Diffs"];
 
-    for (const { plan, diffText } of this.resolveFileViews(input)) {
-      if (diffText !== null && diffText.length > 0) {
-        parts.push(
-          `### ${plan.file.file.path}\n\`\`\`diff\n${diffText}\n\`\`\``,
-        );
-      }
+    for (const plan of input.diffPlan.plans) {
+      if (plan.mode !== "full") continue;
+
+      const diffText = input.diffTexts.get(plan.file.file.path);
+      if (diffText === undefined || diffText.length === 0) continue;
+
+      parts.push(
+        `### ${plan.file.file.path}\n\`\`\`diff\n${diffText}\n\`\`\``,
+      );
     }
 
     return parts.length > 1 ? parts.join("\n\n") : null;
-  }
-
-  // ── Helpers ──
-
-  /**
-   * Joins every full-mode FileDiffPlan with the resolved diff text from diffTexts.
-   * A plan that has no entry in diffTexts (e.g. pure rename, zero content change)
-   * gets diffText: null and will be omitted from the diff section.
-   */
-  private resolveFileViews(input: FullInput): FileView[] {
-    const views: FileView[] = [];
-    for (const plan of input.diffPlan.plans) {
-      if (plan.mode === "full") {
-        views.push({
-          plan,
-          diffText: input.diffTexts.get(plan.file.file.path) ?? null,
-        });
-      }
-    }
-    return views;
   }
 
   private indent(text: string, prefix = "  "): string {
