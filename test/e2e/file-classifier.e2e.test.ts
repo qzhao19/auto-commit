@@ -17,7 +17,7 @@ import { GitRunner } from "../../src/core/git/runner/git-runner";
 import { LFS_POINTER_MAGIC } from "../../src/shared/constants/index";
 import type { FileClassificationResult } from "../../src/shared/types/index";
 
-// ── Constants ────────────────────────────────────────────────────────────────
+// ── Constants ─────────
 
 /**
  * Valid 3-line LFS pointer content (matches the v1 spec exactly).
@@ -31,7 +31,7 @@ const LFS_POINTER_CONTENT =
 /** Minimal PNG magic header — git numstat will flag this as binary. */
 const PNG_MAGIC = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00]);
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Helpers ────────────
 
 async function git(args: string[], cwd: string): Promise<string> {
   const proc = Bun.spawn(["git", ...args], {
@@ -89,7 +89,7 @@ async function run(cwd: string): Promise<FileClassificationResult> {
   return new FileClassifier(runner).classify(summary);
 }
 
-// ── Fixtures ─────────────────────────────────────────────────────────────────
+// ── Fixtures ──────────
 
 let repoDir: string;
 

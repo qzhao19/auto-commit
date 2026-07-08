@@ -23,7 +23,7 @@ import type {
   DiffPlanResult,
 } from "../../src/shared/types/index";
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+// ── Constants ──────────
 
 /** Minimal PNG magic bytes — causes git numstat to flag the file as binary. */
 const PNG_MAGIC = new Uint8Array([
@@ -62,7 +62,7 @@ const TIGHT_E2E: BudgetThresholds = {
   tokensPerFileOverhead: 50,
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Helpers ─────
 
 async function git(args: string[], cwd: string): Promise<string> {
   const proc = Bun.spawn(["git", ...args], {
@@ -146,7 +146,7 @@ async function run(
   return new BudgetPlanner(thresholds).plan(classified);
 }
 
-// ── Fixtures ──────────────────────────────────────────────────────────────────
+// ── Fixtures ───────────
 
 let repoDir: string;
 

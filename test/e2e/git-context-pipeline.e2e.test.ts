@@ -13,7 +13,7 @@ import { GitRunner } from "../../src/core/git/runner/index";
 import { GitContextPipeline } from "../../src/core/git/pipeline/git-pipeline";
 import type { BudgetThresholds } from "../../src/shared/types/index";
 
-// ── Git process helpers ───────────────────────────────────────────────────────
+// ── Git process helpers 
 
 /**
  * Author / committer env injected into every git invocation.
@@ -105,7 +105,7 @@ function makePipeline(dir: string, thresholds?: BudgetThresholds) {
   return new GitContextPipeline(new GitRunner({ cwd: dir }), thresholds);
 }
 
-// ── Per-test cleanup ──────────────────────────────────────────────────────────
+// ── Per-test cleanup ───
 
 let testDir: string | null = null;
 
