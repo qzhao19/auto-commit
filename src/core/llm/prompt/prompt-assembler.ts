@@ -3,9 +3,7 @@ import type {
   AssembledPrompt,
   PromptAssemblyInput,
 } from "../../../shared/types/llm/index";
-import type {
-  GitInternalOpState,
-} from "../../../shared/types/git/index";
+import type { GitInternalOpState } from "../../../shared/types/git/index";
 
 /**
  * Pure English ≈ 4.0 chars/token, diffs with special characters ≈ 2.0–2.5.
@@ -112,7 +110,7 @@ export class PromptAssembler {
         return lines.join("\n");
       }
 
-      // SQUASH_MSG must be written when creating a squash-merge, 
+      // SQUASH_MSG must be written when creating a squash-merge,
       // it cannot be empty
       case "squash-merge":
         return [
@@ -169,11 +167,14 @@ export class PromptAssembler {
         `${estimate.nonNoiseFiles} content file(s), ${estimate.noiseFiles} noise file(s) ` +
           "(binary/submodule/lfs — diff omitted)",
       );
+    } else if (estimate.nonNoiseFiles > 0) {
+      lines.push(`${estimate.nonNoiseFiles} content file(s)`);
     } else if (estimate.noiseFiles > 0) {
       lines.push(
         `${estimate.noiseFiles} noise file(s) (binary/submodule/lfs — diff omitted)`,
       );
     }
+
 
     if (estimate.renamedNoContentChangeCount > 0) {
       lines.push(
@@ -187,10 +188,7 @@ export class PromptAssembler {
           `${degradedCount} file(s) omitted`,
       );
     }
-
-    if (diffSummary.hasBinaryFiles) lines.push("Contains binary files");
-    if (diffSummary.hasSubmodules) lines.push("Contains submodule changes");
-
+    
     return lines.join("\n");
   }
 
@@ -206,7 +204,7 @@ export class PromptAssembler {
           ? "[full diff below]"
           : `[omitted: ${plan.degradationReason ?? "degraded"}]`;
 
-      // 2. Process renaming of filename 
+      // 2. Process renaming of filename
       const pathLabel =
         sf.oldPath !== null ? `${sf.oldPath} → ${sf.path}` : sf.path;
 
@@ -246,9 +244,7 @@ export class PromptAssembler {
       const diffText = input.diffTexts.get(plan.file.file.path);
       if (diffText === undefined || diffText.length === 0) continue;
 
-      parts.push(
-        `### ${plan.file.file.path}\n\`\`\`diff\n${diffText}\n\`\`\``,
-      );
+      parts.push(`### ${plan.file.file.path}\n\`\`\`diff\n${diffText}\n\`\`\``);
     }
 
     return parts.length > 1 ? parts.join("\n\n") : null;
