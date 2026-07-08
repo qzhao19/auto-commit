@@ -112,7 +112,9 @@ export class StateDetector {
     const mergeHead = await this.readGitFile("MERGE_HEAD");
     if (mergeHead === null) return null;
 
-    const mergeMessage = await this.readGitFile("MERGE_MSG");
+    const raw = await this.readGitFile("MERGE_MSG");
+    const mergeMessage = raw !== null ? this.stripGitComments(raw) : null;
+
 
     return { status: "merge", mergeHead, mergeMessage };
   }
@@ -124,8 +126,13 @@ export class StateDetector {
    * so there is no ambiguity with a regular merge.
    */
   private async detectSquashMerge(): Promise<GitInternalOpState | null> {
-    const squashMessage = await this.readGitFile("SQUASH_MSG");
+    const raw = await this.readGitFile("SQUASH_MSG");
+    if (raw === null) return null;
+
+    const squashMessage = this.stripGitComments(raw);
+    // SQUASH_MSG always has content, but after stripping comments it could be empty
     if (squashMessage === null) return null;
+
 
     return { status: "squash-merge", squashMessage };
   }
@@ -216,6 +223,15 @@ export class StateDetector {
     if (!(await file.exists())) return null;
     const content = (await file.text()).trim();
     return content.length > 0 ? content : null;
+  }
+
+  private stripGitComments(text: string): string | null {
+    const stripped = text
+      .split("\n")
+      .filter((line) => !line.startsWith("#"))
+      .join("\n")
+      .trim();
+    return stripped.length > 0 ? stripped : null;
   }
 
   /**
