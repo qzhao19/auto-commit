@@ -10,7 +10,7 @@ import type {
   GitRunResult,
 } from "../../src/shared/types/index";
 
-// ── Constants ────────────────────────────────────────────────────────────────
+// ── Constants ─
 
 const COMMIT_HASH = "abc123def456abc123def456abc123def456abc1";
 const COMMIT_TITLE = "feat: add some feature";
@@ -18,7 +18,7 @@ const MERGE_MSG = "Merge branch 'feature' into main";
 const SQUASH_MSG = "squashed commit message";
 const REBASE_MSG = "chore: update dependencies";
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───
 
 function r(overrides: Partial<GitRunResult> = {}): GitRunResult {
   return {
@@ -167,7 +167,7 @@ function expectRevertState(
   return state;
 }
 
-// ── Setup / Teardown ─────────────────────────────────────────────────────────
+// ── Setup / Teardown ───
 
 let gitDir: string;
 
@@ -179,7 +179,7 @@ afterEach(async () => {
   await rm(gitDir, { recursive: true, force: true });
 });
 
-// ── Tests ────────────────────────────────────────────────────────────────────
+// ── Tests ─────
 
 describe("StateDetector", () => {
   describe("detect() — clean state", () => {

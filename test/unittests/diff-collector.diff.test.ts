@@ -4,11 +4,11 @@ import type { GitRunResult } from "../../src/shared/types/index";
 import type { GitRunner } from "../../src/core/git/runner/index";
 import { DiffCollector } from "../../src/core/git/diff/diff-collector";
 
-// ── Constants ────────────────────────────────────────────────────────────────
+// ── Constants ──
 
 const REPO_CWD = "/repo";
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ────
 
 function r(overrides: Partial<GitRunResult> = {}): GitRunResult {
   return {

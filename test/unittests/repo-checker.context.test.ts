@@ -5,14 +5,14 @@ import type { GitRunner } from "../../src/core/git/runner/index";
 import { RepoChecker } from "../../src/core/git/context/repo-checker";
 import type { BunFile } from "bun";
 
-// ── Constants ────────────────────────────────────────────────────────────────
+// ── Constants ─
 
 const REPO_CWD  = "/repo";
 const GIT_DIR   = "/repo/.git";
 const WORKTREE  = "/repo";
 const BRANCH    = "refs/heads/main";
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───
 
 function r(overrides: Partial<GitRunResult> = {}): GitRunResult {
   return {
@@ -60,17 +60,17 @@ function happyResponses(): GitRunResult[] {
   ];
 }
 
-// ── Cleanup ──────────────────────────────────────────────────────────────────
+// ── Cleanup ───
 
 afterEach(() => {
   jest.restoreAllMocks();
 });
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
+// ── Tests ──────
 
 describe("RepoChecker", () => {
 
-  // ── Success paths ──────────────────────────────────────────────────────────
+  // ── Success paths ────
 
   describe("check() — success paths", () => {
     test("returns a complete GitRepoPrecheckResult on the happy path", async () => {
@@ -189,7 +189,7 @@ describe("RepoChecker", () => {
     });
   });
 
-  // ── Error propagation and step tracking ────────────────────────────────────
+  // ── Error propagation and step tracking 
 
   describe("check() — error propagation and step tracking", () => {
 
@@ -407,7 +407,7 @@ describe("RepoChecker", () => {
     });
   });
 
-  // ── checkLockFile ──────────────────────────────────────────────────────────
+  // ── checkLockFile ────
 
   describe("checkLockFile()", () => {
     test("does not throw when index.lock does not exist", async () => {
@@ -454,7 +454,7 @@ describe("RepoChecker", () => {
     });
   });
 
-  // ── resolveStagingState ────────────────────────────────────────────────────
+  // ── resolveStagingState ───────
 
   describe("resolveStagingState()", () => {
     test("check() succeeds (implying has-staged-changes) when diff --cached exits 1", async () => {
@@ -537,7 +537,7 @@ describe("RepoChecker", () => {
     });
   });
 
-  // ── detectInitialCommit ────────────────────────────────────────────────────
+  // ── detectInitialCommit ───────
 
   describe("detectInitialCommit()", () => {
     test("isInitialCommit is false when rev-parse HEAD exits 0 (commits exist)", async () => {
@@ -571,7 +571,7 @@ describe("RepoChecker", () => {
     });
   });
 
-  // ── detectHeadState ────────────────────────────────────────────────────────
+  // ── detectHeadState ──
 
   describe("detectHeadState()", () => {
     test("isDetachedHead is false and currentBranch is parsed when symbolic-ref exits 0", async () => {

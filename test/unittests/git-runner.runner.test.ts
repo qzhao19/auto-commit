@@ -6,7 +6,7 @@ import { GitRunner } from "../../src/core/git/runner/git-runner";
 import { GitError } from "../../src/shared/exceptions/git-error";
 import { GitCode } from "../../src/shared/exceptions/git-error";
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+// ── Helpers ──
 
 let tempDir: string;
 

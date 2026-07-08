@@ -2,7 +2,7 @@ import { describe, test, expect } from "bun:test";
 import { Timeout } from "../../src/lib/guards/timeout/index";
 import { type TimeoutConfig } from "../../src/shared/types/index";
 
-// ── Helpers ─────────────────────────────────────────────
+// ── Helpers 
 
 /** Default config: 1 second timeout */
 const defaultConfig: TimeoutConfig = {
@@ -38,10 +38,10 @@ function immediateThrow(error: Error): (signal: AbortSignal) => Promise<never> {
   };
 }
 
-// ── Tests ───────────────────────────────────────────────
+// ── Tests ──
 
 describe("Timeout", () => {
-  // ── 1. Basic success ─────────────────────────────────
+  // ── 1. Basic success ──────
 
   describe("basic success", () => {
     test("should return result when function completes within timeout", async () => {
@@ -74,7 +74,7 @@ describe("Timeout", () => {
     });
   });
 
-  // ── 2. Timeout behavior ──────────────────────────────
+  // ── 2. Timeout behavior ───
 
   describe("timeout behavior", () => {
     test("should throw when function exceeds timeout", async () => {
@@ -120,7 +120,7 @@ describe("Timeout", () => {
     });
   });
 
-  // ── 3. AbortSignal ───────────────────────────────────
+  // ── 3. AbortSignal ────────
 
   describe("AbortSignal", () => {
     test("should pass a valid AbortSignal instance to the function", async () => {
@@ -196,7 +196,7 @@ describe("Timeout", () => {
     });
   });
 
-  // ── 4. Error propagation ─────────────────────────────
+  // ── 4. Error propagation ──
 
   describe("error propagation", () => {
     test("should propagate error when function throws before timeout", async () => {
@@ -248,7 +248,7 @@ describe("Timeout", () => {
     });
   });
 
-  // ── 5. Resource cleanup ──────────────────────────────
+  // ── 5. Resource cleanup ───
 
   describe("resource cleanup", () => {
     test("should not abort the signal after successful completion", async () => {
@@ -285,7 +285,7 @@ describe("Timeout", () => {
     });
   });
 
-  // ── 6. Edge cases ────────────────────────────────────
+  // ── 6. Edge cases 
 
   describe("edge cases", () => {
     test("should time out with very short timeoutMs (1ms)", async () => {

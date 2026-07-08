@@ -4,7 +4,7 @@ import type { GitRunner } from "../../src/core/git/runner/index";
 import { FileClassifier } from "../../src/core/git/diff/file-classifier";
 import { LFS_POINTER_MAGIC } from "../../src/shared/constants/index";
 
-// ── Constants ────────────────────────────────────────────────────────────────
+// ── Constants ──
 
 const REPO_CWD = "/repo";
 
@@ -17,7 +17,7 @@ const LFS_BLOB =
   "oid sha256:4d7a214614ab2935c943f9e0ff69d22eadbb8f32b1258daaa5e2ca24d17e2393\n" +
   "size 12345\n";
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ────
 
 function r(overrides: Partial<GitRunResult> = {}): GitRunResult {
   return {

@@ -18,7 +18,7 @@ import { DiffCollector } from "../../src/core/git/diff/diff-collector";
 import { FileClassifier } from "../../src/core/git/diff/file-classifier";
 import { BudgetPlanner } from "../../src/core/git/diff/budget-planner";
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+// ── Constants ───
 
 const GIT_DIR = "/repo/.git";
 const WORKTREE = "/repo";
@@ -26,7 +26,7 @@ const BRANCH = "main";
 const HASH_A = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const HASH_B = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
-// ── Fixtures ──────────────────────────────────────────────────────────────────
+// ── Fixtures ────
 
 const REPO_CONTEXT = {
   gitDir: GIT_DIR,

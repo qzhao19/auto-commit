@@ -2,7 +2,7 @@ import { describe, test, expect} from "bun:test";
 import { RateLimiter } from "../../src/lib/guards/rate-limit/index";
 import { type RateLimiterConfig } from "../../src/shared/types/index";
 
-// ── Helpers ──────────────
+// ── Helpers ─────
 
 /** Default config: 60 RPM, queue 10, timeout 5s */
 const defaultConfig: RateLimiterConfig = {
@@ -156,7 +156,7 @@ describe("RateLimiter", () => {
     });
   });
 
-  // ── 4. Blocking / waiting ─────────────────────────────
+  // ── 4. Blocking / waiting ──
 
   describe("blocking wait", () => {
     test("should block and wait when no tokens are available", async () => {
@@ -212,7 +212,7 @@ describe("RateLimiter", () => {
     }, 15_000);
   });
 
-  // ── 5. Concurrent requests ────────────────────────────
+  // ── 5. Concurrent requests ─
 
   describe("concurrent requests", () => {
     test("should handle multiple concurrent acquires correctly", async () => {
@@ -254,7 +254,7 @@ describe("RateLimiter", () => {
     }, 20_000);
   });
 
-  // ── 6. Queue full (backpressure) ──────────────────────
+  // ── 6. Queue full (backpressure) ────
 
   describe("queue full", () => {
     test("should throw when queue is full", async () => {
@@ -302,7 +302,7 @@ describe("RateLimiter", () => {
     });
   });
 
-  // ── 7. Timeout ─────────
+  // ── 7. Timeout 
 
   describe("timeout", () => {
     test("should reject with timeout error when request waits too long", async () => {
@@ -370,7 +370,7 @@ describe("RateLimiter", () => {
     }, 5_000);
   });
 
-  // ── 8. Edge cases & boundary values ───────────────────
+  // ── 8. Edge cases & boundary values ─
 
   describe("edge cases", () => {
     test("should handle maxRequestsPerMinute = 1", async () => {
@@ -440,7 +440,7 @@ describe("RateLimiter", () => {
     });
   });
 
-  // ── 9. Drain scheduling behavior ─────────────────────
+  // ── 9. Drain scheduling behavior ───
 
   describe("drain scheduling", () => {
     test("should schedule drain asynchronously", async () => {
@@ -492,7 +492,7 @@ describe("RateLimiter", () => {
     }, 15_000);
   });
 
-  // ── 10. Mixed scenarios (chain/integration) ───────────
+  // ── 10. Mixed scenarios (chain/integration) ──
 
   describe("mixed scenarios", () => {
     test("should handle acquire-timeout-acquire cycle", async () => {

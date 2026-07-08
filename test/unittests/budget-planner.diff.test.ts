@@ -10,7 +10,7 @@ import type {
 } from "../../src/shared/types/index";
 import { BudgetPlanner } from "../../src/core/git/diff/budget-planner";
 
-// ── Test thresholds (small, deterministic numbers) ────────────────────────────
+// ── Test thresholds (small, deterministic numbers) 
 //
 // maxTotalTokens:       1000
 // maxLinesPerFile:        50  (lines > 50 → "oversized")
@@ -29,7 +29,7 @@ const TIGHT: BudgetThresholds = {
   tokensPerFileOverhead: 50,
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Helpers ───
 
 let _pathId = 0;
 function uid(prefix = "src/file"): string {

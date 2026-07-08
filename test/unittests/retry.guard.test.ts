@@ -3,7 +3,7 @@ import { Retry } from "../../src/lib/guards/retry/index";
 import { type RetryConfig } from "../../src/shared/types/index";
 import { GuardError, GuardErrorCode } from "../../src/shared/exceptions/index";
 
-// ── Helpers ─────────────────────────────────────────────
+// ── Helpers 
 
 /** Default config: 3 retries, 100ms initial, factor 2, no jitter */
 const defaultConfig: RetryConfig = {
@@ -56,10 +56,10 @@ function callCounter<T>(fn: () => Promise<T>): { fn: () => Promise<T>; getCount:
   };
 }
 
-// ── Tests ───────────────────────────────────────────────
+// ── Tests ──
 
 describe("Retry", () => {
-  // ── 1. Basic success (no retry needed) ────────────────
+  // ── 1. Basic success (no retry needed) ───────
 
   describe("basic success", () => {
     test("should return result immediately when function succeeds on first try", async () => {
@@ -97,7 +97,7 @@ describe("Retry", () => {
     });
   });
 
-  // ── 2. Retry after failure then success ───────────────
+  // ── 2. Retry after failure then success ──────
 
   describe("retry then success", () => {
     test("should succeed after 1 failure", async () => {
@@ -142,7 +142,7 @@ describe("Retry", () => {
     });
   });
 
-  // ── 3. Exhausted retries ──────────────────────────────
+  // ── 3. Exhausted retries ───
 
   describe("max retries exhausted", () => {
     test("should throw after maxRetries failures", async () => {
@@ -189,7 +189,7 @@ describe("Retry", () => {
     });
   });
 
-  // ── 4. Non-retryable errors ───────────────────────────
+  // ── 4. Non-retryable errors 
 
   describe("non-retryable errors", () => {
     test("should throw immediately for non-retryable error", async () => {
@@ -276,7 +276,7 @@ describe("Retry", () => {
     });
   });
 
-  // ── 5. Exponential backoff & maxDelayMs cap ───────────
+  // ── 5. Exponential backoff & maxDelayMs cap ──
 
   describe("exponential backoff", () => {
     test("should increase delay exponentially between retries", async () => {
@@ -384,7 +384,7 @@ describe("Retry", () => {
     }, 5_000);
   });
 
-  // ── 6. Jitter ─────────────────────────────────────────
+  // ── 6. Jitter ─────
 
   describe("jitter", () => {
     test("should produce consistent delays when jitter is off", async () => {
@@ -484,7 +484,7 @@ describe("Retry", () => {
     });
   });
 
-  // ── 7. Concurrent / parallel calls ────────────────────
+  // ── 7. Concurrent / parallel calls ──
 
   describe("concurrent calls", () => {
     test("should handle multiple independent execute calls in parallel", async () => {
@@ -538,7 +538,7 @@ describe("Retry", () => {
     });
   });
 
-  // ── 8. Error propagation ──────────────────────────────
+  // ── 8. Error propagation ───
 
   describe("error propagation", () => {
     test("should preserve Error instance properties", async () => {
@@ -586,7 +586,7 @@ describe("Retry", () => {
     });
   });
 
-  // ── 9. Edge cases & boundary values ───────────────────
+  // ── 9. Edge cases & boundary values ─
 
   describe("edge cases", () => {
     test("should work with maxRetries = 0 (no retries)", async () => {
