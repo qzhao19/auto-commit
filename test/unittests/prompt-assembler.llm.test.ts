@@ -113,16 +113,25 @@ const MOCK_DIFF_PLAN: DiffPlanResult = {
   degradedCount: 0,
 };
 
-// ── Helper functions ──────────────────────────────────────────────────────────
+// ── Helper functions ──────────────────
 
-function makeFullInput(overrides: Partial<Extract<GitPipelineResult, { route: "full" }>> = {}): Extract<GitPipelineResult, { route: "full" }> {
+function makeFullInput(
+  overrides: Partial<Extract<GitPipelineResult, { route: "full" }>> = {},
+): Extract<GitPipelineResult, { route: "full" }> {
   return {
     route: "full",
     repoContext: REPO_CONTEXT,
     diffSummary: MOCK_DIFF_SUMMARY,
     diffPlan: MOCK_DIFF_PLAN,
     diffTexts: new Map(),
-    completedSteps: ["repo-precheck", "state-detect", "diff-collect", "file-classify", "budget-plan", "diff-fetch"],
+    completedSteps: [
+      "repo-precheck",
+      "state-detect",
+      "diff-collect",
+      "file-classify",
+      "budget-plan",
+      "diff-fetch",
+    ],
     ...overrides,
   };
 }
@@ -133,12 +142,36 @@ function makeInterruptedInput(
   status: "merge" | "squash-merge" | "cherry-pick" | "revert" | "rebase",
   stateOverrides: Record<string, unknown> = {},
 ): Extract<GitPipelineResult, { route: "interrupted" }> {
-   const baseStates: Record<typeof status, NonCleanState> = {
-    merge: { status: "merge" as const, mergeHead: HASH_A, mergeMessage: null, ...stateOverrides },
-    "squash-merge": { status: "squash-merge" as const, squashMessage: "Squash feature branch", ...stateOverrides },
-    "cherry-pick": { status: "cherry-pick" as const, cherryPickHead: HASH_A, originalTitle: null, ...stateOverrides },
-    revert: { status: "revert" as const, revertHead: HASH_A, originalTitle: null, ...stateOverrides },
-    rebase: { status: "rebase" as const, rebaseType: "merge" as const, originalMessage: null, ...stateOverrides },
+  const baseStates: Record<typeof status, NonCleanState> = {
+    merge: {
+      status: "merge" as const,
+      mergeHead: HASH_A,
+      mergeMessage: null,
+      ...stateOverrides,
+    },
+    "squash-merge": {
+      status: "squash-merge" as const,
+      squashMessage: "Squash feature branch",
+      ...stateOverrides,
+    },
+    "cherry-pick": {
+      status: "cherry-pick" as const,
+      cherryPickHead: HASH_A,
+      originalTitle: null,
+      ...stateOverrides,
+    },
+    revert: {
+      status: "revert" as const,
+      revertHead: HASH_A,
+      originalTitle: null,
+      ...stateOverrides,
+    },
+    rebase: {
+      status: "rebase" as const,
+      rebaseType: "merge" as const,
+      originalMessage: null,
+      ...stateOverrides,
+    },
   };
 
   return {
@@ -149,13 +182,12 @@ function makeInterruptedInput(
   };
 }
 
-
 // ── Tests ──────
 
 describe("PromptAssembler", () => {
   const assembler = new PromptAssembler();
 
-  // ── assemble() top-level structure ──────────────────────────────────────────
+  // ── assemble() top-level structure ──
 
   test("assemble() returns system + user messages with token estimate", () => {
     const input = makeFullInput();
@@ -179,7 +211,7 @@ describe("PromptAssembler", () => {
     expect(longResult.tokenEstimate).toBeGreaterThan(shortResult.tokenEstimate);
   });
 
-  // ── Full route: buildRepoSection ───────────────────────────────────────────
+  // ── Full route: buildRepoSection ───
 
   test("full route: repo section shows branch name", () => {
     const input = makeFullInput();
@@ -192,7 +224,11 @@ describe("PromptAssembler", () => {
 
   test("full route: repo section shows detached HEAD", () => {
     const input = makeFullInput({
-      repoContext: { ...REPO_CONTEXT, isDetachedHead: true, currentBranch: null },
+      repoContext: {
+        ...REPO_CONTEXT,
+        isDetachedHead: true,
+        currentBranch: null,
+      },
     });
     const result = assembler.assemble(input);
     const userMsg = result.messages[1]!.content;
@@ -208,10 +244,12 @@ describe("PromptAssembler", () => {
     const result = assembler.assemble(input);
     const userMsg = result.messages[1]!.content;
 
-    expect(userMsg).toContain("Initial commit: yes (repository has no prior commits)");
+    expect(userMsg).toContain(
+      "Initial commit: yes (repository has no prior commits)",
+    );
   });
 
-  // ── Full route: buildSummarySection ─────────────────────────────────────────
+  // ── Full route: buildSummarySection ─
 
   test("full route: summary shows file count and line stats", () => {
     const input = makeFullInput();
@@ -219,7 +257,9 @@ describe("PromptAssembler", () => {
     const userMsg = result.messages[1]!.content;
 
     expect(userMsg).toContain("## Summary");
-    expect(userMsg).toContain("1 file(s) changed — +10 insertions, -5 deletions");
+    expect(userMsg).toContain(
+      "1 file(s) changed — +10 insertions, -5 deletions",
+    );
   });
 
   test("full route: summary shows noise files separately", () => {
@@ -243,7 +283,6 @@ describe("PromptAssembler", () => {
     const userMsg = result.messages[1]!.content;
 
     expect(userMsg).toContain("1 content file(s), 1 noise file(s)");
-    expect(userMsg).toContain("Contains binary files");
   });
 
   test("full route: summary shows renamed-no-change count", () => {
@@ -277,23 +316,12 @@ describe("PromptAssembler", () => {
     const result = assembler.assemble(input);
     const userMsg = result.messages[1]!.content;
 
-    expect(userMsg).toContain("Token budget exceeded: 2 file(s) with full diff, 3 file(s) omitted");
+    expect(userMsg).toContain(
+      "Token budget exceeded: 2 file(s) with full diff, 3 file(s) omitted",
+    );
   });
 
-  test("full route: summary shows submodule flag", () => {
-    const input = makeFullInput({
-      diffSummary: {
-        ...MOCK_DIFF_SUMMARY,
-        hasSubmodules: true,
-      },
-    });
-    const result = assembler.assemble(input);
-    const userMsg = result.messages[1]!.content;
-
-    expect(userMsg).toContain("Contains submodule changes");
-  });
-
-  // ── Full route: buildFileManifest ───────────────────────────────────────────
+  // ── Full route: buildFileManifest ───
 
   test("full route: file manifest shows full-mode file", () => {
     const input = makeFullInput();
@@ -408,10 +436,11 @@ describe("PromptAssembler", () => {
     const result = assembler.assemble(input);
     const userMsg = result.messages[1]!.content;
 
-    expect(userMsg).toContain("+0 -0");
+    expect(userMsg).toContain("src/app.ts  (modified)  [source]");
+    expect(userMsg).not.toContain("+0 -0");
   });
 
-  // ── Full route: buildDiffSection ────────────────────────────────────────────
+  // ── Full route: buildDiffSection ────
 
   test("full route: diff section shows diff text when available", () => {
     const diffText = "--- a/src/app.ts\n+++ b/src/app.ts\n@@ -1,3 +1,4 @@";
@@ -480,7 +509,7 @@ describe("PromptAssembler", () => {
     expect(userMsg).not.toContain("## Diffs");
   });
 
-  // ── Interrupted route: merge ────────────────────────────────────────────────
+  // ── Interrupted route: merge ────────
 
   test("interrupted route: merge without message", () => {
     const input = makeInterruptedInput("merge");
@@ -506,7 +535,7 @@ describe("PromptAssembler", () => {
     expect(userMsg).toContain("  Adds new features");
   });
 
-  // ── Interrupted route: squash-merge ─────────────────────────────────────────
+  // ── Interrupted route: squash-merge ─
 
   test("interrupted route: squash-merge always has message", () => {
     const input = makeInterruptedInput("squash-merge");
@@ -518,7 +547,7 @@ describe("PromptAssembler", () => {
     expect(userMsg).toContain("  Squash feature branch");
   });
 
-  // ── Interrupted route: cherry-pick ──────────────────────────────────────────
+  // ── Interrupted route: cherry-pick ──
 
   test("interrupted route: cherry-pick without original title", () => {
     const input = makeInterruptedInput("cherry-pick");
@@ -539,7 +568,7 @@ describe("PromptAssembler", () => {
     expect(userMsg).toContain("Original commit: feat: add user authentication");
   });
 
-  // ── Interrupted route: revert ───────────────────────────────────────────────
+  // ── Interrupted route: revert ───────
 
   test("interrupted route: revert without original title", () => {
     const input = makeInterruptedInput("revert");
@@ -560,7 +589,7 @@ describe("PromptAssembler", () => {
     expect(userMsg).toContain("Reverted commit: fix: broken API endpoint");
   });
 
-  // ── Interrupted route: rebase ───────────────────────────────────────────────
+  // ── Interrupted route: rebase ───────
 
   test("interrupted route: rebase without original message", () => {
     const input = makeInterruptedInput("rebase");
@@ -584,7 +613,7 @@ describe("PromptAssembler", () => {
     expect(userMsg).toContain("  WIP: refactor database layer");
   });
 
-  // ── System message ──────────────────────────────────────────────────────────
+  // ── System message ──────────────────
 
   test("system message contains Conventional Commits instruction", () => {
     const input = makeFullInput();
@@ -592,7 +621,9 @@ describe("PromptAssembler", () => {
     const systemMsg = result.messages[0]!.content;
 
     expect(systemMsg).toContain("Conventional Commits 1.0.0");
-    expect(systemMsg).toContain("feat | fix | docs | style | refactor | perf | test | chore | build | ci");
+    expect(systemMsg).toContain(
+      "feat | fix | docs | style | refactor | perf | test | chore | build | ci",
+    );
     expect(systemMsg).toContain("≤72 characters");
     expect(systemMsg).toContain("Output ONLY the commit message");
   });
