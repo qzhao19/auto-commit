@@ -65,7 +65,7 @@ export class OpenAIProvider extends BaseProvider {
   }
 
   protected override async doInvoke(options: ProviderInvokeOptions): Promise<string> {
-    const { prompt, model, generationConfig, signal } = options;
+    const { messages, model, generationConfig, signal } = options;
     const provider = this.config.provider;
 
     let response: Awaited<ReturnType<OpenAI["chat"]["completions"]["create"]>>;
@@ -73,7 +73,7 @@ export class OpenAIProvider extends BaseProvider {
       response = await this.client.chat.completions.create(
         {
           model,
-          messages: [{ role: "user", content: prompt }],
+          messages: messages.map((msg) => ({ role: msg.role, content: msg.content} )),
           temperature: generationConfig.temperature,
           top_p: generationConfig.topP,
           max_completion_tokens: generationConfig.maxTokens,
