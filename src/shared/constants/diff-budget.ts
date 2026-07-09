@@ -13,8 +13,8 @@ import { type BudgetThresholds } from "../types/index";
  *   - tokensPerFileOverhead: filename + diff hunk header + separators.
  */
 export const DEFAULT_BUDGET_THRESHOLDS: BudgetThresholds = {
-  maxTotalTokens:       16_000,
-  maxLinesPerFile:        500,
-  tokensPerLine:           10,
-  tokensPerFileOverhead:   50,
+  maxTotalTokens: 16_000,
+  maxLinesPerFile: 500,
+  tokensPerLine: 10,
+  tokensPerFileOverhead: 50,
 };

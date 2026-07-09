@@ -1,8 +1,11 @@
-
 // Names of providers that support OpenAI-compatible APIs
-export const DEFAULT_SUPPORTED_PROVIDERS: string[] = ["openai", "deepseek", "ollama"] as const;
+export const DEFAULT_SUPPORTED_PROVIDERS: string[] = [
+  "openai",
+  "deepseek",
+  "ollama",
+] as const;
 
-// Default baseURL for each provider 
+// Default baseURL for each provider
 export const DEFAULT_BASE_URLS: Partial<Record<string, string>> = {
   deepseek: "https://api.deepseek.com/v1",
   ollama: "http://localhost:11434/v1",
