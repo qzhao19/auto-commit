@@ -1,4 +1,8 @@
-import { type RequestGuardsConfig, type InternalRequestGuardsConfig } from "./request-guards";
+import { type LLMMessage } from "./llm-prompt";
+import {
+  type RequestGuardsConfig,
+  type InternalRequestGuardsConfig,
+} from "./request-guards";
 import { type LLMGenerationConfig } from "./model-settings";
 
 /**
@@ -17,7 +21,10 @@ interface ProviderConfig {
 /**
  * Fully resolved provider config returned by ConfigLoader.
  */
-export interface ResolvedProviderConfig extends Omit<ProviderConfig, "requestGuardsConfig" | "generationConfig"> {
+export interface ResolvedProviderConfig extends Omit<
+  ProviderConfig,
+  "requestGuardsConfig" | "generationConfig"
+> {
   generationConfig: LLMGenerationConfig;
   requestGuardsConfig: InternalRequestGuardsConfig;
   verbose: boolean;
@@ -27,7 +34,7 @@ export interface ResolvedProviderConfig extends Omit<ProviderConfig, "requestGua
  * Unified request payload passed from BaseProvider to adapter implementations.
  */
 export interface ProviderInvokeOptions {
-  prompt: string;
+  messages: readonly LLMMessage[];
   model: string;
   generationConfig: LLMGenerationConfig;
   signal?: AbortSignal;

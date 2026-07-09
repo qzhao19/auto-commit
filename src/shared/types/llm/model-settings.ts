@@ -1,6 +1,6 @@
 /**
  * LLMGenerationConfig defines the configuration options for a Large Language Model (LLM).
- * 
+ *
  * Properties:
  * - model: Default model identifier or name
  * - temperature: Controls randomness in generation. Lower values make output more deterministic.
@@ -39,12 +39,13 @@ export interface LLMSecretConfig {
 /**
  * Complete LLM configuration combining provider and generation settings.
  */
-export interface LLMConfig extends LLMProviderConfig, LLMGenerationConfig, LLMSecretConfig {};
+export interface LLMConfig
+  extends LLMProviderConfig, LLMGenerationConfig, LLMSecretConfig {}
 
 /**
  * Partial LLM configuration for incremental config loading.
  * Used to represent incomplete configurations from TOML, env vars, or CLI args.
- * 
+ *
  * Example: A user might only set temperature in the config file,
  * leaving all other fields undefined until they're merged with defaults.
  */

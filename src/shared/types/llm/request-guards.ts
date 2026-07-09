@@ -56,7 +56,10 @@ export interface RequestGuardsConfig {
 /**
  * Complete guards types used by the internal runtime including retryableErrors
  */
-export interface InternalRequestGuardsConfig extends Omit<RequestGuardsConfig, "retry"> {
+export interface InternalRequestGuardsConfig extends Omit<
+  RequestGuardsConfig,
+  "retry"
+> {
   retry: RetryConfig;
 }
 
