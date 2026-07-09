@@ -5,13 +5,12 @@
  * "type-changed" covers T (e.g. regular file ↔ symlink).
  */
 export type StagedChangeType =
-  | "added"         // A
-  | "modified"      // M
-  | "deleted"       // D
-  | "renamed"       // R — git appends similarity score: R95, R100 …
-  | "copied"        // C — git appends similarity score: C80 …
+  | "added" // A
+  | "modified" // M
+  | "deleted" // D
+  | "renamed" // R — git appends similarity score: R95, R100 …
+  | "copied" // C — git appends similarity score: C80 …
   | "type-changed"; // T
-
 
 /**
  * All information about a single staged file, gathered from two git commands
@@ -42,6 +41,3 @@ export interface StagedDiffSummary {
   hasSubmodules: boolean;
   files: StagedFileChange[];
 }
-
-
-
