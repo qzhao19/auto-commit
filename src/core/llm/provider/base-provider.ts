@@ -3,6 +3,7 @@ import { Retry } from "../../../lib/guards/retry/index";
 import { Timeout } from "../../../lib/guards/timeout/index";
 import {
   type LLMGenerationConfig,
+  type LLMMessage,
   type ProviderInvokeOptions,
   type ResolvedProviderConfig,
 } from "../../../shared/types/index";
@@ -59,7 +60,7 @@ export abstract class BaseProvider {
    * Internally wraps the execution in Retry → RateLimiter → Timeout → doInvoke.
    */
   public async invoke(
-    prompt: string,
+    messages: readonly LLMMessage[],
     generationConfigOverrides?: Partial<LLMGenerationConfig>,
     signal?: AbortSignal,
   ): Promise<string> {
@@ -106,7 +107,7 @@ export abstract class BaseProvider {
             ? AbortSignal.any([signal, timeoutSignal])
             : timeoutSignal;
           return this.doInvoke({ 
-            prompt, 
+            messages, 
             model, 
             generationConfig: effectiveGenerationConfig, 
             signal: combinedSignal 
