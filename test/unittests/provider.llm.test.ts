@@ -85,22 +85,25 @@ function setFakeClient(
 
 // const originalLoadConfig = BaseProvider.loadConfig;
 const originalLoadConfig: typeof BaseProvider.loadConfig =
-BaseProvider.loadConfig.bind(BaseProvider);
+  BaseProvider.loadConfig.bind(BaseProvider);
 
 function mockLoadConfig(config: ResolvedProviderConfig): void {
-  (BaseProvider as unknown as { loadConfig: typeof BaseProvider.loadConfig }).loadConfig =
-    async () => config;
+  (
+    BaseProvider as unknown as { loadConfig: typeof BaseProvider.loadConfig }
+  ).loadConfig = async () => config;
 }
 
 describe("provider pipeline", () => {
   beforeEach(() => {
-    (BaseProvider as unknown as { loadConfig: typeof BaseProvider.loadConfig }).loadConfig =
-      originalLoadConfig;
+    (
+      BaseProvider as unknown as { loadConfig: typeof BaseProvider.loadConfig }
+    ).loadConfig = originalLoadConfig;
   });
 
   afterEach(() => {
-    (BaseProvider as unknown as { loadConfig: typeof BaseProvider.loadConfig }).loadConfig =
-      originalLoadConfig;
+    (
+      BaseProvider as unknown as { loadConfig: typeof BaseProvider.loadConfig }
+    ).loadConfig = originalLoadConfig;
   });
 
   describe("createProvider dispatch", () => {
@@ -157,10 +160,8 @@ describe("provider pipeline", () => {
     });
 
     test("throws CONFIG_INVALID when openai apiKey is missing", () => {
-      expect(() =>
-        new OpenAIProvider(
-          makeConfig("openai", { apiKey: undefined }),
-        ),
+      expect(
+        () => new OpenAIProvider(makeConfig("openai", { apiKey: undefined })),
       ).toThrow();
 
       try {
@@ -175,10 +176,8 @@ describe("provider pipeline", () => {
     });
 
     test("throws CONFIG_INVALID when deepseek apiKey is blank", () => {
-      expect(() =>
-        new OpenAIProvider(
-          makeConfig("deepseek", { apiKey: "   " }),
-        ),
+      expect(
+        () => new OpenAIProvider(makeConfig("deepseek", { apiKey: "   " })),
       ).toThrow();
 
       try {
@@ -193,13 +192,14 @@ describe("provider pipeline", () => {
     });
 
     test("does not throw when ollama apiKey is missing", () => {
-      expect(() =>
-        new OpenAIProvider(
-          makeConfig("ollama", {
-            apiKey: undefined,
-            baseUrl: undefined,
-          }),
-        ),
+      expect(
+        () =>
+          new OpenAIProvider(
+            makeConfig("ollama", {
+              apiKey: undefined,
+              baseUrl: undefined,
+            }),
+          ),
       ).not.toThrow();
     });
 
@@ -215,8 +215,11 @@ describe("provider pipeline", () => {
     });
 
     test("create uses BaseProvider.loadConfig", async () => {
-      (BaseProvider as unknown as { loadConfig: typeof BaseProvider.loadConfig }).loadConfig =
-        async () => makeConfig("deepseek");
+      (
+        BaseProvider as unknown as {
+          loadConfig: typeof BaseProvider.loadConfig;
+        }
+      ).loadConfig = async () => makeConfig("deepseek");
 
       const provider = await OpenAIProvider.create();
       expect(provider).toBeInstanceOf(OpenAIProvider);
@@ -234,14 +237,16 @@ describe("provider pipeline", () => {
         capturedReq = req;
         capturedSignal = opts?.signal;
         return {
-          choices: [{ message: { content: "feat: add commit message generator" } }],
+          choices: [
+            { message: { content: "feat: add commit message generator" } },
+          ],
         };
       });
 
       const controller = new AbortController();
 
       const result = await provider.invokeRaw({
-        prompt: "summarize staged changes",
+        messages: [{ role: "user", content: "summarize staged changes" }],
         model: "gpt-4o-mini",
         generationConfig: {
           temperature: 0.2,
@@ -275,9 +280,9 @@ describe("provider pipeline", () => {
         choices: [{ message: { content: "   " } }],
       }));
 
-      await expect(
+      expect(
         provider.invokeRaw({
-          prompt: "x",
+          messages: [{ role: "user", content: "x" }],
           model: "gpt-4o-mini",
           generationConfig: {},
         }),
@@ -295,9 +300,9 @@ describe("provider pipeline", () => {
         choices: [{ message: {} }],
       }));
 
-      await expect(
+      expect(
         provider.invokeRaw({
-          prompt: "x",
+          messages: [{ role: "user", content: "x" }],
           model: "gpt-4o-mini",
           generationConfig: {},
         }),
@@ -315,9 +320,9 @@ describe("provider pipeline", () => {
         throw new Error("network down");
       });
 
-      await expect(
+      expect(
         provider.invokeRaw({
-          prompt: "x",
+          messages: [{ role: "user", content: "x" }],
           model: "deepseek-chat",
           generationConfig: {},
         }),
@@ -339,9 +344,9 @@ describe("provider pipeline", () => {
         });
       });
 
-      await expect(
+      expect(
         provider.invokeRaw({
-          prompt: "x",
+          messages: [{ role: "user", content: "x" }],
           model: "gpt-4o-mini",
           generationConfig: {},
         }),
@@ -365,9 +370,9 @@ describe("provider pipeline", () => {
         choices: [{ message: { content: "ok" } }],
       }));
 
-      await expect(
+      expect(
         provider.invokeRaw({
-          prompt: "x",
+          messages: [{ role: "user", content: "x" }],
           model: "llama3",
           generationConfig: {},
         }),
@@ -384,7 +389,9 @@ describe("provider pipeline", () => {
         super(config);
       }
 
-      protected override async doInvoke(options: ProviderInvokeOptions): Promise<string> {
+      protected override async doInvoke(
+        options: ProviderInvokeOptions,
+      ): Promise<string> {
         this.sequence.push("doInvoke");
         this.lastInvoke = options;
         return "ok";
@@ -430,7 +437,9 @@ describe("provider pipeline", () => {
         },
       };
 
-      const result = await provider.invoke("hello");
+      const result = await provider.invoke([
+        { role: "user", content: "hello" },
+      ]);
 
       expect(result).toBe("ok");
       expect(provider.sequence).toEqual([
@@ -470,7 +479,10 @@ describe("provider pipeline", () => {
         execute: async (fn) => fn(new AbortController().signal),
       };
 
-      await provider.invoke("hello", { temperature: 0.2, maxTokens: 32 });
+      await provider.invoke([{ role: "user", content: "hello" }], {
+        temperature: 0.2,
+        maxTokens: 32,
+      });
 
       expect(provider.lastInvoke?.generationConfig.temperature).toBe(0.2);
       expect(provider.lastInvoke?.generationConfig.maxTokens).toBe(32);
