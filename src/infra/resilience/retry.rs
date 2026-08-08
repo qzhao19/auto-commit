@@ -1,6 +1,7 @@
 use std::future::Future;
 use std::time::Duration;
 
+use rand;
 use tokio::time::sleep;
 
 use crate::shared::config::resilience::RetryConfig;
