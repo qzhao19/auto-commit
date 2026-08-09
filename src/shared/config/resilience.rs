@@ -33,3 +33,18 @@ impl Default for RetryConfig {
         }
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct ResilienceConfig {
+    pub retry: RetryConfig,
+    pub timeout: TimeoutConfig,
+}
+
+impl Default for ResilienceConfig {
+    fn default() -> Self {
+        Self {
+            retry: RetryConfig::default(),
+            timeout: TimeoutConfig { timeout:  },
+        }
+    }
+}
