@@ -1,6 +1,8 @@
 use std::time::Duration;
 
-#[derive(Debug, Clone)]
+use serde::Deserialize;
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct TimeoutConfig {
     pub timeout: Duration,
 }
@@ -13,7 +15,7 @@ impl Default for TimeoutConfig {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RetryConfig {
     pub max_retries: u32,
     pub initial_delay: Duration,
@@ -34,17 +36,69 @@ impl Default for RetryConfig {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct ResilienceConfig {
     pub retry: RetryConfig,
     pub timeout: TimeoutConfig,
 }
 
-impl Default for ResilienceConfig {
-    fn default() -> Self {
-        Self {
-            retry: RetryConfig::default(),
-            timeout: TimeoutConfig { timeout:  },
+// ---------- Partial ----------
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PartialTimeoutConfig {
+    pub timeout_ms: Option<u64>,
+}
+
+impl PartialTimeoutConfig {
+    pub fn merge(self, lower: TimeoutConfig) -> TimeoutConfig {
+        TimeoutConfig {
+            timeout: opt_ms(self.timeout_ms, lower.timeout),
         }
     }
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PartialRetryConfig {
+    pub max_retries: Option<u32>,
+    pub initial_delay_ms: Option<u64>,
+    pub max_delay_ms: Option<u64>,
+    pub factor: Option<f32>,
+    pub jitter: Option<bool>,
+}
+
+impl PartialRetryConfig {
+    pub fn merge(self, lower: RetryConfig) -> RetryConfig {
+        RetryConfig {
+            max_retries: self.max_retries.unwrap_or(lower.max_retries),
+            initial_delay: opt_ms(self.initial_delay_ms, lower.initial_delay),
+            max_delay: opt_ms(self.max_delay_ms, lower.max_delay),
+            factor: self.factor.unwrap_or(lower.factor),
+            jitter: self.jitter.unwrap_or(lower.jitter),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PartialResilienceConfig {
+    #[serde(default)]
+    pub retry: PartialRetryConfig,
+    #[serde(default)]
+    pub timeout: PartialTimeoutConfig,
+}
+
+impl PartialResilienceConfig {
+    pub fn merge(self, lower: ResilienceConfig) -> ResilienceConfig {
+        ResilienceConfig {
+            retry: self.retry.merge(lower.retry),
+            timeout: self.timeout.merge(lower.timeout),
+        }
+    }
+}
+
+#[inline]
+fn opt_ms(ms: Option<u64>, lower: Duration) -> Duration {
+    ms.map(Duration::from_millis).unwrap_or(lower)
 }
