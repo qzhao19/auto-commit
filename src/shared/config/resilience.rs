@@ -42,7 +42,7 @@ pub struct ResilienceConfig {
     pub timeout: TimeoutConfig,
 }
 
-// ---------- Partial ----------
+// --- Partial ---
 
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -51,9 +51,9 @@ pub struct PartialTimeoutConfig {
 }
 
 impl PartialTimeoutConfig {
-    pub fn merge(self, lower: TimeoutConfig) -> TimeoutConfig {
+    pub fn merge(self, config: TimeoutConfig) -> TimeoutConfig {
         TimeoutConfig {
-            timeout: opt_ms(self.timeout_ms, lower.timeout),
+            timeout: opt_ms(self.timeout_ms, config.timeout),
         }
     }
 }
@@ -69,13 +69,13 @@ pub struct PartialRetryConfig {
 }
 
 impl PartialRetryConfig {
-    pub fn merge(self, lower: RetryConfig) -> RetryConfig {
+    pub fn merge(self, config: RetryConfig) -> RetryConfig {
         RetryConfig {
-            max_retries: self.max_retries.unwrap_or(lower.max_retries),
-            initial_delay: opt_ms(self.initial_delay_ms, lower.initial_delay),
-            max_delay: opt_ms(self.max_delay_ms, lower.max_delay),
-            factor: self.factor.unwrap_or(lower.factor),
-            jitter: self.jitter.unwrap_or(lower.jitter),
+            max_retries: self.max_retries.unwrap_or(config.max_retries),
+            initial_delay: opt_ms(self.initial_delay_ms, config.initial_delay),
+            max_delay: opt_ms(self.max_delay_ms, config.max_delay),
+            factor: self.factor.unwrap_or(config.factor),
+            jitter: self.jitter.unwrap_or(config.jitter),
         }
     }
 }
@@ -90,15 +90,15 @@ pub struct PartialResilienceConfig {
 }
 
 impl PartialResilienceConfig {
-    pub fn merge(self, lower: ResilienceConfig) -> ResilienceConfig {
+    pub fn merge(self, config: ResilienceConfig) -> ResilienceConfig {
         ResilienceConfig {
-            retry: self.retry.merge(lower.retry),
-            timeout: self.timeout.merge(lower.timeout),
+            retry: self.retry.merge(config.retry),
+            timeout: self.timeout.merge(config.timeout),
         }
     }
 }
 
 #[inline]
-fn opt_ms(ms: Option<u64>, lower: Duration) -> Duration {
-    ms.map(Duration::from_millis).unwrap_or(lower)
+fn opt_ms(ms: Option<u64>, config: Duration) -> Duration {
+    ms.map(Duration::from_millis).unwrap_or(config)
 }
