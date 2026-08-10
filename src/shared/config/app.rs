@@ -33,12 +33,12 @@ pub struct PartialAppConfig {
 }
 
 impl PartialAppConfig {
-    /// Overlay partial input on top of `lower`, producing the final config
+    /// Overlay partial input on top of `config`, producing the final config
     /// Call chain: `cli.merge(env.merge(toml.merge(base)))`, where `base` is the default layer.
-    pub fn merge(self, lower: AppConfig) -> AppConfig {
+    pub fn merge(self, config: AppConfig) -> AppConfig {
         AppConfig {
-            llm: self.llm.merge(lower.llm),
-            resilience: self.resilience.merge(lower.resilience),
+            llm: self.llm.merge(config.llm),
+            resilience: self.resilience.merge(config.resilience),
         }
     }
 }
