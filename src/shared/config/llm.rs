@@ -142,12 +142,12 @@ pub struct PartialLlmProviderConfig {
 }
 
 impl PartialLlmProviderConfig {
-    pub fn merge(self, lower: LlmProviderConfig) -> LlmProviderConfig {
+    pub fn merge(self, config: LlmProviderConfig) -> LlmProviderConfig {
         LlmProviderConfig {
-            provider: self.provider.unwrap_or(lower.provider),
-            model: self.model.unwrap_or(lower.model),
-            api_key: self.api_key.or(lower.api_key),
-            base_url: self.base_url.or(lower.base_url),
+            provider: self.provider.unwrap_or(config.provider),
+            model: self.model.unwrap_or(config.model),
+            api_key: self.api_key.or(config.api_key),
+            base_url: self.base_url.or(config.base_url),
         }
     }
 }
@@ -163,13 +163,13 @@ pub struct PartialLlmGenerationConfig {
 }
 
 impl PartialLlmGenerationConfig {
-    pub fn merge(self, lower: LlmGenerationConfig) -> LlmGenerationConfig {
+    pub fn merge(self, config: LlmGenerationConfig) -> LlmGenerationConfig {
         LlmGenerationConfig {
-            temperature: self.temperature.unwrap_or(lower.temperature),
-            frequency_penalty: self.frequency_penalty.unwrap_or(lower.frequency_penalty),
-            presence_penalty: self.presence_penalty.unwrap_or(lower.presence_penalty),
-            top_p: self.top_p.unwrap_or(lower.top_p),
-            max_tokens: self.max_tokens.unwrap_or(lower.max_tokens),
+            temperature: self.temperature.unwrap_or(config.temperature),
+            frequency_penalty: self.frequency_penalty.unwrap_or(config.frequency_penalty),
+            presence_penalty: self.presence_penalty.unwrap_or(config.presence_penalty),
+            top_p: self.top_p.unwrap_or(config.top_p),
+            max_tokens: self.max_tokens.unwrap_or(config.max_tokens),
         }
     }
 }
@@ -183,10 +183,10 @@ pub struct PartialLlmConfig {
 }
 
 impl PartialLlmConfig {
-    pub fn merge(self, lower: LlmConfig) -> LlmConfig {
+    pub fn merge(self, config: LlmConfig) -> LlmConfig {
         LlmConfig {
-            provider: self.provider.merge(lower.provider),
-            generation: self.generation.merge(lower.generation),
+            provider: self.provider.merge(config.provider),
+            generation: self.generation.merge(config.generation),
         }
     }
 }
