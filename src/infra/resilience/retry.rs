@@ -2,7 +2,6 @@ use std::future::Future;
 use std::time::Duration;
 
 use rand;
-use tokio::time::sleep;
 
 use crate::shared::config::resilience::RetryConfig;
 
@@ -52,7 +51,7 @@ impl Retry {
                     if !is_retryable(&error) {
                         return RetryResult::NonRetryable(error);
                     }
-                    sleep(self.calculate_delay(attempt)).await;
+                    tokio::time::sleep(self.calculate_delay(attempt)).await;
                 }
             }
         }
