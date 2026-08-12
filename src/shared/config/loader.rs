@@ -18,7 +18,7 @@ pub struct CliArgs {
     pub temperature: Option<f32>,
 
     #[arg(long, help = "Max tokens to generate (> 0)")]
-    pub max_tokens: Option<u32>,
+    pub max_tokens: Option<i32>,
 
     #[arg(long, help = "Nucleus sampling probability in (0, 1]")]
     pub top_p: Option<f32>,
