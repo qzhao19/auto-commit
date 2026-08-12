@@ -90,7 +90,7 @@ pub struct LlmGenerationConfig {
     pub frequency_penalty: f32,
     pub presence_penalty: f32,
     pub top_p: f32,
-    pub max_tokens: u32,
+    pub max_tokens: i32,
 }
 
 impl Default for LlmGenerationConfig {
@@ -159,7 +159,7 @@ pub struct PartialLlmGenerationConfig {
     pub frequency_penalty: Option<f32>,
     pub presence_penalty: Option<f32>,
     pub top_p: Option<f32>,
-    pub max_tokens: Option<u32>,
+    pub max_tokens: Option<i32>,
 }
 
 impl PartialLlmGenerationConfig {
