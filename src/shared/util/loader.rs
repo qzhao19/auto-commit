@@ -94,7 +94,7 @@ pub fn validate(config: &AppConfig) -> Result<(), ConfigError> {
             reason: "must be in (0, 1]".into(),
         });
     }
-    if g.max_tokens == 0 {
+    if g.max_tokens <= 0 {
         return Err(ConfigError::InvalidValue {
             field: "llm.max_tokens",
             reason: "must be > 0".into(),
