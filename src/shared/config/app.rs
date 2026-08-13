@@ -1,7 +1,7 @@
+use serde::Deserialize;
+
 use super::llm::{LlmConfig, PartialLlmConfig};
 use super::resilience::{PartialResilienceConfig, ResilienceConfig};
-
-use serde::Deserialize;
 
 /// Merged top-level config: all fields are non-`Option`
 #[derive(Debug, Clone, PartialEq)]
