@@ -78,13 +78,11 @@ impl Provider for OllamaProvider {
     }
 }
 
-/// 'RequestError' and 'InternalError' are retryable error
+/// 'RequestError' are retryable error
 /// `JsonError` / `ToolCallError` / `Other` are deterministic errors
 fn ollama_err(err: OllamaError) -> LlmError {
     let err_type = match &err {
-        OllamaError::ReqwestError(_) | OllamaError::InternalError(_) => {
-            ProviderErrorType::Transient
-        }
+        OllamaError::ReqwestError(_) => ProviderErrorType::Transient,
         _ => ProviderErrorType::Fatal,
     };
 
