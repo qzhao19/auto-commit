@@ -56,26 +56,23 @@ impl Provider for OpenAiProvider {
                     self.generation.max_tokens
                 ))
             })?;
-            let user_msg = {
-                let mut chat_completion = ChatCompletionRequestUserMessageArgs::default();
-                chat_completion
-                    .content(prompt)
-                    .build()
-                    .map_err(openai_err)?
-            };
 
-            let request = {
-                let mut b = CreateChatCompletionRequestArgs::default();
-                b.model(self.model.as_str())
-                    .messages(vec![user_msg.into()])
-                    .temperature(self.generation.temperature)
-                    .top_p(self.generation.top_p)
-                    .max_tokens(max_tokens)
-                    .frequency_penalty(self.generation.frequency_penalty)
-                    .presence_penalty(self.generation.presence_penalty)
-                    .build()
-                    .map_err(openai_err)?
-            };
+            // Create user message
+            let user_msg = ChatCompletionRequestUserMessageArgs::default()
+                .content(prompt)
+                .build()
+                .map_err(openai_err)?;
+
+            let request = CreateChatCompletionRequestArgs::default()
+                .model(self.model.as_str())
+                .messages(vec![user_msg.into()])
+                .temperature(self.generation.temperature)
+                .top_p(self.generation.top_p)
+                .max_tokens(max_tokens)
+                .frequency_penalty(self.generation.frequency_penalty)
+                .presence_penalty(self.generation.presence_penalty)
+                .build()
+                .map_err(openai_err)?;
 
             let response = self
                 .client
@@ -103,9 +100,20 @@ impl Provider for OpenAiProvider {
     }
 }
 
+/// `ApiError` carries the HTTP status code of the API response:
+/// - rate limits (429) and server errors (5xx) are transient;
+/// - (400/401/404 …) is deterministi
 fn openai_err(err: OpenAIError) -> LlmError {
     let err_type = match &err {
         OpenAIError::Reqwest(_) => ProviderErrorType::Transient,
+        OpenAIError::ApiError(api_err) => {
+            let code = api_err.status_code.as_u16();
+            if code == 429 || (500..=599).contains(&code) {
+                ProviderErrorType::Transient
+            } else {
+                ProviderErrorType::Fatal
+            }
+        }
         _ => ProviderErrorType::Fatal,
     };
 
