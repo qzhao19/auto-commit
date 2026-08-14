@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use rand;
 
-use crate::shared::config::resilience::RetryConfig;
+use crate::shared::config::RetryConfig;
 
 /// Retry execution result with three states:
 /// - `Ok`: Success
