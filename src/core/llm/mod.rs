@@ -4,8 +4,8 @@ pub mod provider;
 use std::future::Future;
 use std::pin::Pin;
 
-use crate::shared::config::llm::{LlmConfig, ProviderName};
-use crate::shared::exception::llm::LlmError;
+use crate::shared::config::{LlmConfig, ProviderName};
+use crate::shared::exception::LlmError;
 
 use provider::ollama::OllamaProvider;
 use provider::openai::OpenAiProvider;
