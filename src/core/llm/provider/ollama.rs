@@ -7,8 +7,8 @@ use ollama_rs::generation::chat::ChatMessage;
 use ollama_rs::generation::chat::request::ChatMessageRequest;
 use ollama_rs::models::ModelOptions;
 
-use crate::shared::config::llm::{LlmConfig, LlmGenerationConfig};
-use crate::shared::exception::llm::{LlmError, ProviderErrorType};
+use crate::shared::config::{LlmConfig, LlmGenerationConfig};
+use crate::shared::exception::{LlmError, ProviderErrorType};
 
 use super::super::Provider;
 
