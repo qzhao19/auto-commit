@@ -1,2 +1,3 @@
 pub mod config;
-pub mod resilience;
+pub mod retry;
+pub mod timeout;
