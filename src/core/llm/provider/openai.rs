@@ -8,8 +8,8 @@ use async_openai::types::chat::{
     ChatCompletionRequestUserMessageArgs, CreateChatCompletionRequestArgs,
 };
 
-use crate::shared::config::llm::{LlmConfig, LlmGenerationConfig};
-use crate::shared::exception::llm::{LlmError, ProviderErrorType};
+use crate::shared::config::{LlmConfig, LlmGenerationConfig};
+use crate::shared::exception::{LlmError, ProviderErrorType};
 
 use super::super::Provider;
 
