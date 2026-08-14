@@ -1,6 +1,6 @@
 use std::future::Future;
 
-use crate::shared::config::resilience::TimeoutConfig;
+use crate::shared::config::TimeoutConfig;
 
 pub struct Timeout {
     config: TimeoutConfig,
