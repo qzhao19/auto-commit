@@ -1,7 +1,7 @@
-use crate::infra::resilience::retry::{Retry, RetryResult};
-use crate::infra::resilience::timeout::Timeout;
-use crate::shared::config::app::AppConfig;
-use crate::shared::exception::llm::LlmError;
+use crate::infra::retry::{Retry, RetryResult};
+use crate::infra::timeout::Timeout;
+use crate::shared::config::AppConfig;
+use crate::shared::exception::LlmError;
 
 use super::{Provider, build_provider};
 
