@@ -1,15 +1,11 @@
 use clap::Parser;
 use std::path::PathBuf;
 
-use crate::shared::config::app::{AppConfig, PartialAppConfig};
-use crate::shared::config::llm::{
-    ApiKey, PartialLlmConfig, PartialLlmGenerationConfig, PartialLlmProviderConfig,
+use crate::shared::config::{
+    ApiKey, AppConfig, CliArgs, PartialAppConfig, PartialLlmConfig, PartialLlmGenerationConfig,
+    PartialLlmProviderConfig, PartialResilienceConfig, PartialRetryConfig, PartialTimeoutConfig,
 };
-use crate::shared::config::loader::CliArgs;
-use crate::shared::config::resilience::{
-    PartialResilienceConfig, PartialRetryConfig, PartialTimeoutConfig,
-};
-use crate::shared::exception::config::ConfigError;
+use crate::shared::exception::ConfigError;
 use crate::shared::util::loader::{
     env_str, normalize_empty_strings, parse_env, parse_env_bool, resolve_default_config_path,
     validate,
