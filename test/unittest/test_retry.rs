@@ -2,8 +2,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 
-use crate::infra::resilience::retry::{Retry, RetryResult};
-use crate::shared::config::resilience::RetryConfig;
+use crate::infra::retry::{Retry, RetryResult};
+use crate::shared::config::RetryConfig;
 
 /// Test error type — distinguishes retryable vs non-retryable errors.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24,7 +24,7 @@ fn fast_config(max_retries: u32) -> RetryConfig {
     }
 }
 
-//  Retry::new validation 
+//  Retry::new validation
 
 #[test]
 fn new_rejects_max_retries_above_10() {
@@ -77,7 +77,7 @@ fn new_rejects_max_delay_below_initial_delay() {
     assert!(err.contains("max_delay"), "got: {err}");
 }
 
-//  Retry::execute state machine 
+//  Retry::execute state machine
 
 /// Wrap an `Arc<AtomicU32>` into a `FnMut` closure that counts calls and
 /// runs `body(n)` (where `n` is the 1-indexed attempt number) inside an
