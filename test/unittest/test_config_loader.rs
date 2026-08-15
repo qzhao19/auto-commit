@@ -1,11 +1,10 @@
 use std::path::PathBuf;
 
-use crate::infra::config::loader::ConfigLoader;
-use crate::shared::config::llm::{LlmGenerationConfig, ProviderName};
-use crate::shared::config::loader::CliArgs;
-use crate::shared::exception::config::ConfigError;
+use crate::infra::config::ConfigLoader;
+use crate::shared::config::{CliArgs, LlmGenerationConfig, ProviderName};
+use crate::shared::exception::ConfigError;
 
-// helpers 
+// helpers
 
 /// Inline env-var pairs: `env(&[("K", "v"), ...])`.
 fn env(pairs: &[(&str, &str)]) -> Vec<(String, String)> {
@@ -37,7 +36,7 @@ impl Drop for TempToml {
     }
 }
 
-//  layer precedence 
+//  layer precedence
 
 #[test]
 fn no_layers_yields_defaults_then_fails_validation_on_model() {
@@ -156,7 +155,7 @@ fn env_does_not_set_generation_params() {
     assert_eq!(config.llm.provider.provider, ProviderName::Ollama);
 }
 
-//  validation gate 
+//  validation gate
 
 #[test]
 fn openai_without_api_key_returns_missing_required() {
@@ -194,7 +193,7 @@ fn ollama_does_not_require_api_key() {
     );
 }
 
-//  error paths in layers 
+//  error paths in layers
 
 #[test]
 fn malformed_toml_returns_toml_parse_error() {
@@ -257,7 +256,7 @@ fn bad_bool_env_returns_env_parse() {
     assert_eq!(var, "AUTOCOMMIT_RETRY_JITTER");
 }
 
-//  normalize_empty_strings 
+//  normalize_empty_strings
 
 #[test]
 fn empty_base_url_in_toml_normalizes_to_none() {
