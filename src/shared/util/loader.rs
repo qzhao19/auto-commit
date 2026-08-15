@@ -1,9 +1,8 @@
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use crate::shared::config::app::AppConfig;
-use crate::shared::config::llm::ProviderName;
-use crate::shared::exception::config::ConfigError;
+use crate::shared::config::{AppConfig, ProviderName};
+use crate::shared::exception::ConfigError;
 
 pub fn env_str<'a>(env: &'a [(String, String)], var: &str) -> Option<&'a str> {
     env.iter().find(|(k, _)| k == var).map(|(_, v)| v.as_str())
