@@ -1,9 +1,9 @@
 use std::time::Duration;
 
-use crate::infra::resilience::timeout::Timeout;
-use crate::shared::config::resilience::TimeoutConfig;
+use crate::infra::timeout::Timeout;
+use crate::shared::config::TimeoutConfig;
 
-//  Timeout::new validation 
+//  Timeout::new validation
 
 #[test]
 fn new_accepts_nonzero_duration() {
@@ -24,7 +24,7 @@ fn new_rejects_zero_duration() {
     assert!(err.contains("timeout"), "got: {err}");
 }
 
-//  Timeout::execute behavior 
+//  Timeout::execute behavior
 
 #[tokio::test]
 async fn execute_returns_value_when_future_completes() {
