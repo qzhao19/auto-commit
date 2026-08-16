@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
 use tokio::process::Command;
@@ -22,6 +22,10 @@ impl GitRunner {
             cwd.unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
 
         Self { default_cwd }
+    }
+
+    pub fn cwd(&self) -> &Path {
+        self.default_cwd.as_path()
     }
 
     pub async fn run(
