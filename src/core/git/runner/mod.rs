@@ -1,2 +1,5 @@
-pub mod git_runner;
-pub mod types;
+mod git_runner;
+mod types;
+
+pub use git_runner::GitRunner;
+pub use types::GitRunOptions;
