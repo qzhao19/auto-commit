@@ -3,7 +3,7 @@ use std::fmt;
 
 /// Classification of git-layer failures
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum GitCode {
+pub enum GitErrorCode {
     /// Failed to start the `git` process (not found, permission, etc.).
     SpawnFailed,
     /// Process started, but exit code was not in the allowed set.
@@ -16,7 +16,7 @@ pub enum GitCode {
     Other,
 }
 
-impl GitCode {
+impl GitErrorCode {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::CommandFailed => "command_failed",
@@ -28,7 +28,7 @@ impl GitCode {
     }
 }
 
-impl fmt::Display for GitCode {
+impl fmt::Display for GitErrorCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
     }
@@ -36,13 +36,13 @@ impl fmt::Display for GitCode {
 
 #[derive(Debug)]
 pub struct GitError {
-    pub code: GitCode,
+    pub code: GitErrorCode,
     pub message: String,
     source: Option<Box<dyn Error + Send + Sync>>,
 }
 
 impl GitError {
-    pub fn new(code: GitCode, message: impl Into<String>) -> Self {
+    pub fn new(code: GitErrorCode, message: impl Into<String>) -> Self {
         Self {
             code,
             message: message.into(),
@@ -51,7 +51,7 @@ impl GitError {
     }
 
     /// Primary constructor with a lower-level cause
-    pub fn with_source<E>(code: GitCode, message: impl Into<String>, source: E) -> Self
+    pub fn with_source<E>(code: GitErrorCode, message: impl Into<String>, source: E) -> Self
     where
         E: Error + Send + Sync + 'static,
     {
