@@ -25,6 +25,16 @@ pub struct GitCommandResult {
     pub command: String,
     pub cwd: PathBuf,
     pub exit_code: i32,
-    pub stdout: String,
-    pub stderr: String,
+    pub stdout: Vec<u8>,
+    pub stderr: Vec<u8>,
+}
+
+impl GitCommandResult {
+    pub fn stdout_str(&self) -> std::borrow::Cow<'_, str> {
+        String::from_utf8_lossy(&self.stdout)
+    }
+
+    pub fn stderr_str(&self) -> std::borrow::Cow<'_, str> {
+        String::from_utf8_lossy(&self.stderr)
+    }
 }
