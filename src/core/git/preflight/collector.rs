@@ -1,9 +1,11 @@
 use std::path::PathBuf;
 
-use crate::core::git::runner::{GitRunOptions, GitRunner};
-use crate::shared::exception::{GitCode, GitError};
+use tokio::io::Stdout;
 
-use super::types::{GitPaths, RepositoryContext};
+use crate::core::git::types::{GitPaths, RepositoryContext};
+use crate::infra::git::GitRunner;
+use crate::shared::config::GitRunOptions;
+use crate::shared::exception::{GitError, GitErrorCode};
 
 /// Result of repository discovery.
 #[derive(Debug)]
@@ -34,11 +36,11 @@ const BINARY_PROBE_EXIT_CODES: &[i32] = &[0, 1];
 /// - non-bare
 /// - not blocked by index.lock
 /// - has staged changes
-pub struct RepositoryPreflight<'a> {
+pub struct RepoPreflightCollector<'a> {
     runner: &'a GitRunner,
 }
 
-impl<'a> RepositoryPreflight<'a> {
+impl<'a> RepoPreflightCollector<'a> {
     pub fn new(runner: &'a GitRunner) -> Self {
         Self { runner }
     }
@@ -49,7 +51,7 @@ impl<'a> RepositoryPreflight<'a> {
 
         if repository.is_bare {
             return Err(GitError::new(
-                GitCode::Other,
+                GitErrorCode::Other,
                 "bare repository is not supported; auto-commit requires a working tree",
             ));
         }
@@ -94,18 +96,19 @@ impl<'a> RepositoryPreflight<'a> {
             )
             .await
             .map_err(|err| match err.code {
-                GitCode::CommandFailed => GitError::new(
-                    GitCode::NotARepository,
+                GitErrorCode::CommandFailed => GitError::new(
+                    GitErrorCode::NotARepository,
                     format!("not a git repository: {err}"),
                 ),
                 _ => err,
             })?;
 
-        let mut lines = result.stdout.lines().map(str::trim);
+        let stdout = result.stdout_str();
+        let mut lines = stdout.lines().map(str::trim);
 
         let git_dir_raw = lines.next().ok_or_else(|| {
             GitError::new(
-                GitCode::CommandFailed,
+                GitErrorCode::CommandFailed,
                 "git rev-parse returned no git directory",
             )
         })?;
@@ -115,13 +118,13 @@ impl<'a> RepositoryPreflight<'a> {
             Some("false") => false,
             Some(value) => {
                 return Err(GitError::new(
-                    GitCode::CommandFailed,
+                    GitErrorCode::CommandFailed,
                     format!("unexpected --is-bare-repository output: {value:?}"),
                 ));
             }
             None => {
                 return Err(GitError::new(
-                    GitCode::CommandFailed,
+                    GitErrorCode::CommandFailed,
                     "git rev-parse returned no bare-repository status",
                 ));
             }
@@ -139,11 +142,11 @@ impl<'a> RepositoryPreflight<'a> {
             .run(&["rev-parse", "--show-toplevel"], None)
             .await?;
 
-        let root = result.stdout.trim();
+        let root = result.stdout_str().trim().to_owned();
 
         if root.is_empty() {
             return Err(GitError::new(
-                GitCode::CommandFailed,
+                GitErrorCode::CommandFailed,
                 "git rev-parse --show-toplevel returned an empty path",
             ));
         }
@@ -157,12 +160,12 @@ impl<'a> RepositoryPreflight<'a> {
 
         match index_lock.try_exists() {
             Ok(true) => Err(GitError::new(
-                GitCode::Other,
+                GitErrorCode::Other,
                 format!("git index is locked: {}", index_lock.display()),
             )),
             Ok(false) => Ok(()),
             Err(error) => Err(GitError::new(
-                GitCode::Other,
+                GitErrorCode::Other,
                 format!(
                     "failed to inspect git index lock {}: {error}",
                     index_lock.display()
@@ -186,11 +189,11 @@ impl<'a> RepositoryPreflight<'a> {
 
         // `run` only returns Ok for exit codes in the allow-list {0, 1}.
         match result.exit_code {
-            0 => match result.stdout.trim() {
+            0 => match result.stdout_str().trim() {
                 // Exit 0 must print the OID; empty output is an anomaly,
                 // not an unborn HEAD (that is exit 1 below).
                 "" => Err(GitError::new(
-                    GitCode::CommandFailed,
+                    GitErrorCode::CommandFailed,
                     "git rev-parse --verify HEAD exited 0 but printed no commit id",
                 )),
                 oid => Ok(Some(oid.to_owned())),
@@ -205,13 +208,13 @@ impl<'a> RepositoryPreflight<'a> {
     async fn resolve_branch(&self) -> Result<Option<String>, GitError> {
         let result = self.runner.run(&["branch", "--show-current"], None).await?;
 
-        let branch = result.stdout.trim();
+        let branch = result.stdout_str().trim().to_owned();
 
         // Empty output means detached HEAD
         if branch.is_empty() {
             Ok(None)
         } else {
-            Ok(Some(branch.to_owned()))
+            Ok(Some(branch))
         }
     }
 
@@ -242,13 +245,13 @@ impl<'a> RepositoryPreflight<'a> {
 
         if has_unstaged || has_untracked {
             return Err(GitError::new(
-                GitCode::NothingStaged,
+                GitErrorCode::NothingStaged,
                 "no staged changes; run `git add` or `git rm` first",
             ));
         }
 
         Err(GitError::new(
-            GitCode::NothingStaged,
+            GitErrorCode::NothingStaged,
             "nothing to commit: staging area and working tree are clean",
         ))
     }
