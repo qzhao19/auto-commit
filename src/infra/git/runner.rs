@@ -3,8 +3,8 @@ use std::process::Stdio;
 
 use tokio::process::Command;
 
-use super::types::{GitCommandResult, GitRunOptions};
-use crate::shared::exception::{GitCode, GitError};
+use crate::shared::config::{GitCommandResult, GitRunOptions};
+use crate::shared::exception::{GitError, GitErrorCode};
 
 const GIT_COMMAND: &str = "git";
 
@@ -41,15 +41,15 @@ impl GitRunner {
 
         if !allowed_exit_codes.contains(&result.exit_code) {
             let reason = if !result.stderr.is_empty() {
-                result.stderr.as_str()
+                result.stderr_str()
             } else if !result.stdout.is_empty() {
-                result.stdout.as_str()
+                result.stdout_str()
             } else {
-                "unknown git error"
+                std::borrow::Cow::Borrowed("unknown git error")
             };
 
             return Err(GitError::new(
-                GitCode::CommandFailed,
+                GitErrorCode::CommandFailed,
                 format!(
                     "git command failed with exit code {}: {}\n{}",
                     result.exit_code, result.command, reason
@@ -66,7 +66,7 @@ impl GitRunner {
         options: Option<&GitRunOptions>,
     ) -> Result<GitCommandResult, GitError> {
         let cwd = options
-            .and_then(|option| option.cwd.as_ref())
+            .and_then(|opts| opts.cwd.as_ref())
             .unwrap_or(&self.default_cwd);
 
         let command = format!("{} {}", GIT_COMMAND, args.join(" "));
@@ -84,13 +84,13 @@ impl GitRunner {
             child.env(key, val);
         }
 
-        if let Some(options) = options {
-            child.envs(&options.env);
+        if let Some(opts) = options {
+            child.envs(&opts.env);
         }
 
         let output = child.output().await.map_err(|err| {
             GitError::with_source(
-                GitCode::SpawnFailed,
+                GitErrorCode::SpawnFailed,
                 format!("failed to spawn git command: {command}"),
                 err,
             )
@@ -103,8 +103,8 @@ impl GitRunner {
             command,
             cwd: cwd.to_path_buf(),
             exit_code,
-            stdout: String::from_utf8_lossy(&output.stdout).trim().to_string(),
-            stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
+            stdout: output.stdout,
+            stderr: output.stderr,
         })
     }
 }
