@@ -57,7 +57,7 @@ impl GitPaths {
 
 #[derive(Debug, Clone)]
 pub struct RepositoryContext {
-    /// Repository working tree root.
+    /// Repo working tree root.
     pub worktree_root: PathBuf,
 
     /// Absolute path to the Git directory.
@@ -87,7 +87,7 @@ impl RepositoryContext {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum OperationAction {
+pub enum OperationAction {
     Abort,
     Reuse,
     Template,
@@ -133,9 +133,10 @@ impl OperationState {
         }
     }
 
-    /// Seed message for later stages: reuse, or hand to the LLM
-    /// for polishing. `None` for abort/clean states or when the source is
-    /// unavailable
+    /// Seed message for later stages:
+    /// - reuse
+    /// - hand to the LLM for polishing.
+    /// - `None` for abort/clean states or when the source is unavailable
     pub fn seed_message(&self) -> Option<String> {
         match self {
             Self::Conflicts | Self::Bisect | Self::Clean => None,
@@ -145,5 +146,98 @@ impl OperationState {
             Self::CherryPick { subject, .. } => subject.clone(),
             Self::Revert { subject, .. } => subject.as_ref().map(|s| format!("Revert \"{s}\"")),
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChangeType {
+    Added,
+    Modified,
+    Deleted,
+    Renamed,
+    Copied,
+    TypeChanged,
+}
+
+/// Decision-level classification of a staged path
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FileType {
+    SemanticText,
+    Binary,
+    Submodule,
+}
+
+#[derive(Debug, Clone)]
+pub struct StagedFile {
+    /// Final path in the index / post-image.
+    pub path: PathBuf,
+
+    /// Original path for rename/copy.
+    pub old_path: Option<PathBuf>,
+
+    pub change_type: ChangeType,
+
+    /// Rename/copy similarity score, e.g. 95 means 95%.
+    pub similarity: Option<u8>,
+
+    /// Number of added lines.
+    pub insertions: Option<u64>,
+
+    /// Number of deleted lines.
+    pub deletions: Option<u64>,
+
+    pub file_type: FileType,
+}
+
+#[derive(Debug, Clone)]
+pub struct StagedSnapshot {
+    pub files: Vec<StagedFile>,
+}
+
+impl StagedSnapshot {
+    pub fn total_files(&self) -> usize {
+        self.files.len()
+    }
+
+    pub fn total_insertions(&self) -> u64 {
+        self.files
+            .iter()
+            .map(|f| u64::from(f.insertions.unwrap_or(0)))
+            .sum()
+    }
+
+    pub fn total_deletions(&self) -> u64 {
+        self.files
+            .iter()
+            .map(|f| u64::from(f.deletions.unwrap_or(0)))
+            .sum()
+    }
+
+    pub fn has_binary(&self) -> bool {
+        self.files.iter().any(|f| f.file_type == FileType::Binary)
+    }
+
+    pub fn has_submodule(&self) -> bool {
+        self.files
+            .iter()
+            .any(|f| f.file_type == FileType::Submodule)
+    }
+
+    pub fn has_rename(&self) -> bool {
+        self.files
+            .iter()
+            .any(|f| f.change_type == ChangeType::Renamed)
+    }
+
+    pub fn has_copy(&self) -> bool {
+        self.files
+            .iter()
+            .any(|f| f.change_type == ChangeType::Copied)
+    }
+
+    pub fn has_type_change(&self) -> bool {
+        self.files
+            .iter()
+            .any(|f| f.change_type == ChangeType::TypeChanged)
     }
 }
