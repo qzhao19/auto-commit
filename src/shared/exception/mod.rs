@@ -3,5 +3,5 @@ mod git;
 mod llm;
 
 pub use config::ConfigError;
-pub use git::{GitCode, GitError};
+pub use git::{GitErrorCode, GitError};
 pub use llm::{LlmError, ProviderErrorType};
