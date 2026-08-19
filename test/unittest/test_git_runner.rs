@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use crate::core::git::runner::{GitRunOptions, GitRunner};
-use crate::shared::exception::GitCode;
+use crate::infra::git::GitRunner;
+use crate::shared::config::GitRunOptions;
+use crate::shared::exception::GitErrorCode;
 
 //  helpers
 
@@ -63,9 +64,9 @@ async fn run_succeeds_on_zero_exit_code() {
 
     assert_eq!(result.exit_code, 0);
     assert!(
-        result.stdout.contains("git version"),
+        result.stdout_str().contains("git version"),
         "expected git version banner, got: {}",
-        result.stdout
+        result.stdout_str()
     );
 }
 
@@ -80,7 +81,7 @@ async fn run_nonzero_exit_returns_command_failed() {
         .await
         .unwrap_err();
 
-    assert_eq!(err.code, GitCode::CommandFailed);
+    assert_eq!(err.code, GitErrorCode::CommandFailed);
     // Message shape: "git command failed with exit code N: git cmd\n<reason>"
     assert!(
         err.message.contains("git command failed with exit code"),
@@ -115,7 +116,7 @@ async fn run_allowed_exit_codes_rejects_unlisted_code() {
     };
 
     let err = runner.run(&["--version"], Some(&allow)).await.unwrap_err();
-    assert_eq!(err.code, GitCode::CommandFailed);
+    assert_eq!(err.code, GitErrorCode::CommandFailed);
 }
 
 //  run: options layer
@@ -162,14 +163,14 @@ async fn run_options_env_is_injected_to_subprocess() {
         .await
         .unwrap();
     assert!(
-        result.stdout.contains("AutoCommitTester"),
+        result.stdout_str().contains("AutoCommitTester"),
         "GIT_AUTHOR_NAME didn't propagate; got: {}",
-        result.stdout
+        result.stdout_str()
     );
     assert!(
-        result.stdout.contains("tester@example.invalid"),
+        result.stdout_str().contains("tester@example.invalid"),
         "GIT_AUTHOR_EMAIL didn't propagate; got: {}",
-        result.stdout
+        result.stdout_str()
     );
 }
 
@@ -186,7 +187,7 @@ async fn run_command_failed_message_includes_stderr_reason() {
     let runner = GitRunner::new(Some(dir.path().to_path_buf()));
 
     let err = runner.run(&["status"], None).await.unwrap_err();
-    assert_eq!(err.code, GitCode::CommandFailed);
+    assert_eq!(err.code, GitErrorCode::CommandFailed);
     assert!(
         err.message.contains("not a git repository"),
         "stderr should propagate into message; got: {err}"
