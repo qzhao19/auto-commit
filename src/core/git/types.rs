@@ -162,6 +162,7 @@ pub enum ChangeType {
 /// Decision-level classification of a staged path
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FileType {
+    // Ordinary text file (line stats available)
     SemanticText,
     Binary,
     Submodule,
@@ -169,27 +170,27 @@ pub enum FileType {
 
 #[derive(Debug, Clone)]
 pub struct StagedFile {
-    /// Final path in the index / post-image.
+    /// Final path in the index / post-image
     pub path: PathBuf,
 
-    /// Original path for rename/copy.
+    /// Original path for rename/copy
     pub old_path: Option<PathBuf>,
 
     pub change_type: ChangeType,
 
-    /// Rename/copy similarity score, e.g. 95 means 95%.
+    /// Rename/copy similarity score, e.g. 95 means 95%
     pub similarity: Option<u8>,
 
-    /// Number of added lines.
+    /// Number of added lines, `None` for Binary / Submodule
     pub insertions: Option<u64>,
 
-    /// Number of deleted lines.
+    /// Number of deleted lines, `None` for Binary / Submodule
     pub deletions: Option<u64>,
 
     pub file_type: FileType,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct StagedSnapshot {
     pub files: Vec<StagedFile>,
 }
@@ -200,17 +201,11 @@ impl StagedSnapshot {
     }
 
     pub fn total_insertions(&self) -> u64 {
-        self.files
-            .iter()
-            .map(|f| u64::from(f.insertions.unwrap_or(0)))
-            .sum()
+        self.files.iter().filter_map(|f| f.insertions).sum()
     }
 
     pub fn total_deletions(&self) -> u64 {
-        self.files
-            .iter()
-            .map(|f| u64::from(f.deletions.unwrap_or(0)))
-            .sum()
+        self.files.iter().filter_map(|f| f.deletions).sum()
     }
 
     pub fn has_binary(&self) -> bool {
@@ -239,5 +234,13 @@ impl StagedSnapshot {
         self.files
             .iter()
             .any(|f| f.change_type == ChangeType::TypeChanged)
+    }
+
+    /// Number of files that can contribute to the line budget
+    pub fn text_file_count(&self) -> usize {
+        self.files
+            .iter()
+            .filter(|f| f.file_type == FileType::SemanticText)
+            .count()
     }
 }
