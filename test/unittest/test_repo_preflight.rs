@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
-use crate::core::git::pipeline::repo_preflight::RepositoryPreflight;
-use crate::core::git::runner::GitRunner;
-use crate::shared::exception::GitCode;
+use crate::core::git::preflight::RepoPreflightCollector;
+use crate::infra::git::GitRunner;
+use crate::shared::exception::GitErrorCode;
 
 //  helpers
 
@@ -68,9 +68,12 @@ async fn not_a_repository_maps_to_not_a_repository_code() {
     let dir = TempDir::new("preflight_not_a_repository").unwrap();
     let runner = GitRunner::new(Some(dir.path().to_path_buf()));
 
-    let err = RepositoryPreflight::new(&runner).run().await.unwrap_err();
+    let err = RepoPreflightCollector::new(&runner)
+        .run()
+        .await
+        .unwrap_err();
 
-    assert_eq!(err.code, GitCode::NotARepository, "got: {err}");
+    assert_eq!(err.code, GitErrorCode::NotARepository, "got: {err}");
 }
 
 #[tokio::test]
@@ -79,9 +82,12 @@ async fn bare_repository_is_rejected() {
     let runner = GitRunner::new(Some(dir.path().to_path_buf()));
     git(&runner, &["init", "--bare"]).await;
 
-    let err = RepositoryPreflight::new(&runner).run().await.unwrap_err();
+    let err = RepoPreflightCollector::new(&runner)
+        .run()
+        .await
+        .unwrap_err();
 
-    assert_eq!(err.code, GitCode::Other, "got: {err}");
+    assert_eq!(err.code, GitErrorCode::Other, "got: {err}");
     assert!(
         err.message.contains("bare repository"),
         "should explain the bare rejection; got: {err}"
@@ -100,9 +106,12 @@ async fn index_lock_blocks_preflight() {
     let lock = dir.path().join(".git").join("index.lock");
     std::fs::write(&lock, b"").unwrap();
 
-    let err = RepositoryPreflight::new(&runner).run().await.unwrap_err();
+    let err = RepoPreflightCollector::new(&runner)
+        .run()
+        .await
+        .unwrap_err();
 
-    assert_eq!(err.code, GitCode::Other, "got: {err}");
+    assert_eq!(err.code, GitErrorCode::Other, "got: {err}");
     assert!(
         err.message.contains("index is locked"),
         "should point at the lock file; got: {err}"
@@ -119,9 +128,12 @@ async fn clean_worktree_reports_nothing_to_commit() {
     git(&runner, &["add", "a.txt"]).await;
     commit(&runner, "init").await;
 
-    let err = RepositoryPreflight::new(&runner).run().await.unwrap_err();
+    let err = RepoPreflightCollector::new(&runner)
+        .run()
+        .await
+        .unwrap_err();
 
-    assert_eq!(err.code, GitCode::NothingStaged, "got: {err}");
+    assert_eq!(err.code, GitErrorCode::NothingStaged, "got: {err}");
     assert!(err.message.contains("nothing to commit"), "got: {err}");
 }
 
@@ -135,9 +147,12 @@ async fn unstaged_modification_prompts_git_add() {
     // Tracked file modified but not staged.
     std::fs::write(dir.path().join("a.txt"), b"two").unwrap();
 
-    let err = RepositoryPreflight::new(&runner).run().await.unwrap_err();
+    let err = RepoPreflightCollector::new(&runner)
+        .run()
+        .await
+        .unwrap_err();
 
-    assert_eq!(err.code, GitCode::NothingStaged, "got: {err}");
+    assert_eq!(err.code, GitErrorCode::NothingStaged, "got: {err}");
     assert!(err.message.contains("git add"), "got: {err}");
 }
 
@@ -155,9 +170,12 @@ async fn untracked_file_prompts_git_add() {
     // Untracked only: no tracked modifications.
     std::fs::write(dir.path().join("new.txt"), b"fresh").unwrap();
 
-    let err = RepositoryPreflight::new(&runner).run().await.unwrap_err();
+    let err = RepoPreflightCollector::new(&runner)
+        .run()
+        .await
+        .unwrap_err();
 
-    assert_eq!(err.code, GitCode::NothingStaged, "got: {err}");
+    assert_eq!(err.code, GitErrorCode::NothingStaged, "got: {err}");
     assert!(
         err.message.contains("git add"),
         "untracked file must route to the `git add` hint; got: {err}"
@@ -176,13 +194,9 @@ async fn success_returns_full_context() {
     std::fs::write(dir.path().join("b.txt"), b"two").unwrap();
     git(&runner, &["add", "b.txt"]).await;
 
-    let expected_head = runner
-        .run(&["rev-parse", "HEAD"], None)
-        .await
-        .unwrap()
-        .stdout;
+    let expected_head = runner.run(&["rev-parse", "HEAD"], None).await.unwrap();
 
-    let ctx = RepositoryPreflight::new(&runner).run().await.unwrap();
+    let ctx = RepoPreflightCollector::new(&runner).run().await.unwrap();
 
     // git resolves symlinks; compare against the canonicalized fixture.
     assert_eq!(ctx.worktree_root, dir.path().canonicalize().unwrap());
@@ -190,7 +204,10 @@ async fn success_returns_full_context() {
         ctx.git_dir(),
         &dir.path().canonicalize().unwrap().join(".git")
     );
-    assert_eq!(ctx.head_oid.as_deref(), Some(expected_head.trim()));
+    assert_eq!(
+        ctx.head_oid.as_deref(),
+        Some(expected_head.stdout_str().trim())
+    );
     assert!(ctx.branch.as_deref().is_some_and(|b| !b.is_empty()));
     assert!(!ctx.is_initial_commit());
     assert!(!ctx.is_detached_head());
@@ -207,7 +224,7 @@ async fn unborn_head_reports_initial_commit() {
     std::fs::write(dir.path().join("a.txt"), b"one").unwrap();
     git(&runner, &["add", "a.txt"]).await;
 
-    let ctx = RepositoryPreflight::new(&runner).run().await.unwrap();
+    let ctx = RepoPreflightCollector::new(&runner).run().await.unwrap();
 
     assert_eq!(ctx.head_oid, None);
     assert!(ctx.is_initial_commit());
@@ -230,18 +247,17 @@ async fn detached_head_context_has_no_branch() {
     commit(&runner, "init").await;
     git(&runner, &["checkout", "--detach"]).await;
 
-    let expected_head = runner
-        .run(&["rev-parse", "HEAD"], None)
-        .await
-        .unwrap()
-        .stdout;
+    let expected_head = runner.run(&["rev-parse", "HEAD"], None).await.unwrap();
 
     std::fs::write(dir.path().join("b.txt"), b"two").unwrap();
     git(&runner, &["add", "b.txt"]).await;
 
-    let ctx = RepositoryPreflight::new(&runner).run().await.unwrap();
+    let ctx = RepoPreflightCollector::new(&runner).run().await.unwrap();
 
     assert_eq!(ctx.branch, None);
     assert!(ctx.is_detached_head());
-    assert_eq!(ctx.head_oid.as_deref(), Some(expected_head.trim()));
+    assert_eq!(
+        ctx.head_oid.as_deref(),
+        Some(expected_head.stdout_str().trim())
+    );
 }
