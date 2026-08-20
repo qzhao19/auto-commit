@@ -161,11 +161,13 @@ pub enum ChangeType {
 
 /// Decision-level classification of a staged path
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FileType {
-    // Ordinary text file (line stats available)
-    SemanticText,
-    Binary,
+pub enum FileCategory {
+    Unknown,
     Submodule,
+    Binary,
+    DependencyLock,
+    Generated,
+    SemanticText, // Ordinary text file (line stats available)
 }
 
 #[derive(Debug, Clone)]
@@ -187,7 +189,8 @@ pub struct StagedFile {
     /// Number of deleted lines, `None` for Binary / Submodule
     pub deletions: Option<u64>,
 
-    pub file_type: FileType,
+    /// File classification
+    pub category: FileCategory,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -201,46 +204,65 @@ impl StagedSnapshot {
     }
 
     pub fn total_insertions(&self) -> u64 {
-        self.files.iter().filter_map(|f| f.insertions).sum()
+        self.files.iter().filter_map(|file| file.insertions).sum()
     }
 
     pub fn total_deletions(&self) -> u64 {
-        self.files.iter().filter_map(|f| f.deletions).sum()
+        self.files.iter().filter_map(|file| file.deletions).sum()
     }
 
-    pub fn has_binary(&self) -> bool {
-        self.files.iter().any(|f| f.file_type == FileType::Binary)
-    }
-
-    pub fn has_submodule(&self) -> bool {
+    pub fn text_file_count(&self) -> usize {
         self.files
             .iter()
-            .any(|f| f.file_type == FileType::Submodule)
+            .filter(|file| file.category == FileCategory::SemanticText)
+            .count()
+    }
+
+    pub fn binary_file_count(&self) -> usize {
+        self.files
+            .iter()
+            .filter(|file| file.category == FileCategory::Binary)
+            .count()
+    }
+
+    pub fn submodule_file_count(&self) -> usize {
+        self.files
+            .iter()
+            .filter(|file| file.category == FileCategory::Submodule)
+            .count()
+    }
+
+    pub fn generated_file_count(&self) -> usize {
+        self.files
+            .iter()
+            .filter(|file| file.category == FileCategory::Generated)
+            .count()
+    }
+
+    pub fn dependency_lock_file_count(&self) -> usize {
+        self.files
+            .iter()
+            .filter(|file| file.category == FileCategory::DependencyLock)
+            .count()
     }
 
     pub fn has_rename(&self) -> bool {
         self.files
             .iter()
-            .any(|f| f.change_type == ChangeType::Renamed)
+            .any(|file| file.change_type == ChangeType::Renamed)
     }
 
     pub fn has_copy(&self) -> bool {
         self.files
             .iter()
-            .any(|f| f.change_type == ChangeType::Copied)
+            .any(|file| file.change_type == ChangeType::Copied)
     }
 
     pub fn has_type_change(&self) -> bool {
         self.files
             .iter()
-            .any(|f| f.change_type == ChangeType::TypeChanged)
-    }
-
-    /// Number of files that can contribute to the line budget
-    pub fn text_file_count(&self) -> usize {
-        self.files
-            .iter()
-            .filter(|f| f.file_type == FileType::SemanticText)
-            .count()
+            .any(|file| file.change_type == ChangeType::TypeChanged)
     }
 }
+
+
