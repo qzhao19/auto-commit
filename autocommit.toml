@@ -3,21 +3,20 @@
 # ─────────────────────────────────────────────────────────
 [llm]
 # The provider name of model (e.g., "openai")
-provider = ""
+provider = "openai"
 
 # Model identifier (required)
-# Examples: gpt-4o-mini, claude-3-5-sonnet, deepseek-chat
-model = ""
+# Examples: gpt-4o-mini, claude-3-5-sonnet, deepseek-v4-flash
+model = "deepseek-v4-flash"
 
 # Optional: Custom API base URL
 # # Examples:
 #   - https://api.deepseek.com/v1
 #   - http://localhost:11434/v1 (for Ollama)
 # Leave empty for default provider endpoint
-baseUrl = ""
+baseUrl = "https://api.deepseek.com"
 
-# ⚠️ WARNING: Setting apiKey here is insecure. Use AUTOCOMMIT_API_KEY env var instead.
-# apiKey = ""
+# WARNING: Setting apiKey here is insecure. Use AUTOCOMMIT_LLM_API_KEY env var instead.
 
 # Generation parameters (optional; each has a default)
 temperature = 0.8
@@ -27,20 +26,15 @@ frequencyPenalty = 0
 presencePenalty = 0
 
 # ─────────────────────────────────────────────────────────
-# RequestGuards Strategies
+# Resilience Strategies
 # ─────────────────────────────────────────────────────────
 
-[requestGuards.retry]
+[resilience.retry]
 maxRetries = 3
 initialDelayMs = 1000
 maxDelayMs = 10000
 factor = 2
 jitter = true
 
-[requestGuards.timeout]
+[resilience.timeout]
 timeoutMs = 30000
-
-[requestGuards.rateLimiter]
-maxRequestsPerMinute = 20
-maxQueueSize = 1000
-requestTimeout = 30000
