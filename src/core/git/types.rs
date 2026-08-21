@@ -1,5 +1,7 @@
 use std::path::{Path, PathBuf};
 
+// ---- Repository Preflight ----
+
 /// Paths inside the Git directory that are used by later stages.
 #[derive(Debug, Clone)]
 pub struct GitPaths {
@@ -86,6 +88,8 @@ impl RepositoryContext {
     }
 }
 
+// ---- Git operation state ----
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OperationAction {
     Abort,
@@ -149,6 +153,8 @@ impl OperationState {
     }
 }
 
+// ---- Staged Metadata ----
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChangeType {
     Added,
@@ -167,7 +173,7 @@ pub enum FileCategory {
     Binary,
     DependencyLock,
     Generated,
-    SemanticText, // Ordinary text file (line stats available)
+    SemanticText,
 }
 
 #[derive(Debug, Clone)]
@@ -211,10 +217,10 @@ impl StagedSnapshot {
         self.files.iter().filter_map(|file| file.deletions).sum()
     }
 
-    pub fn text_file_count(&self) -> usize {
+    pub fn unknown_file_count(&self) -> usize {
         self.files
             .iter()
-            .filter(|file| file.category == FileCategory::SemanticText)
+            .filter(|file| file.category == FileCategory::Unknown)
             .count()
     }
 
@@ -246,6 +252,14 @@ impl StagedSnapshot {
             .count()
     }
 
+    // Counts semantic file
+    pub fn text_file_count(&self) -> usize {
+        self.files
+            .iter()
+            .filter(|file| file.category == FileCategory::SemanticText)
+            .count()
+    }
+
     pub fn has_rename(&self) -> bool {
         self.files
             .iter()
@@ -265,4 +279,9 @@ impl StagedSnapshot {
     }
 }
 
+// ---- File Classification ----
 
+#[derive(Debug, Clone, Default)]
+pub struct ClassifiedSnapshot {
+    pub files: Vec<StagedFile>,
+}
