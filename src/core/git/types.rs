@@ -285,3 +285,13 @@ impl StagedSnapshot {
 pub struct ClassifiedSnapshot {
     pub files: Vec<StagedFile>,
 }
+
+impl ClassifiedSnapshot {
+    pub fn from_files(files: Vec<StagedFile>) -> Self {
+        debug_assert!(
+            files.iter().all(|f| f.category != FileCategory::Unknown),
+            "ClassifiedSnapshot must not contain Unknown"
+        );
+        Self { files }
+    }
+}
