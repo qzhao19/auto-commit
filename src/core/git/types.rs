@@ -1,5 +1,7 @@
 use std::path::{Path, PathBuf};
 
+use toml::de;
+
 // ---- Repository Preflight ----
 
 /// Paths inside the Git directory that are used by later stages.
@@ -204,81 +206,6 @@ pub struct StagedSnapshot {
     pub files: Vec<StagedFile>,
 }
 
-impl StagedSnapshot {
-    pub fn total_files(&self) -> usize {
-        self.files.len()
-    }
-
-    pub fn total_insertions(&self) -> u64 {
-        self.files.iter().filter_map(|file| file.insertions).sum()
-    }
-
-    pub fn total_deletions(&self) -> u64 {
-        self.files.iter().filter_map(|file| file.deletions).sum()
-    }
-
-    pub fn unknown_file_count(&self) -> usize {
-        self.files
-            .iter()
-            .filter(|file| file.category == FileCategory::Unknown)
-            .count()
-    }
-
-    pub fn binary_file_count(&self) -> usize {
-        self.files
-            .iter()
-            .filter(|file| file.category == FileCategory::Binary)
-            .count()
-    }
-
-    pub fn submodule_file_count(&self) -> usize {
-        self.files
-            .iter()
-            .filter(|file| file.category == FileCategory::Submodule)
-            .count()
-    }
-
-    pub fn generated_file_count(&self) -> usize {
-        self.files
-            .iter()
-            .filter(|file| file.category == FileCategory::Generated)
-            .count()
-    }
-
-    pub fn dependency_lock_file_count(&self) -> usize {
-        self.files
-            .iter()
-            .filter(|file| file.category == FileCategory::DependencyLock)
-            .count()
-    }
-
-    // Counts semantic file
-    pub fn text_file_count(&self) -> usize {
-        self.files
-            .iter()
-            .filter(|file| file.category == FileCategory::SemanticText)
-            .count()
-    }
-
-    pub fn has_rename(&self) -> bool {
-        self.files
-            .iter()
-            .any(|file| file.change_type == ChangeType::Renamed)
-    }
-
-    pub fn has_copy(&self) -> bool {
-        self.files
-            .iter()
-            .any(|file| file.change_type == ChangeType::Copied)
-    }
-
-    pub fn has_type_change(&self) -> bool {
-        self.files
-            .iter()
-            .any(|file| file.change_type == ChangeType::TypeChanged)
-    }
-}
-
 // ---- File Classification ----
 
 #[derive(Debug, Clone, Default)]
@@ -293,5 +220,150 @@ impl ClassifiedSnapshot {
             "ClassifiedSnapshot must not contain Unknown"
         );
         Self { files }
+    }
+}
+
+// ---- Budget Planner ----
+
+/// SemanticText layer
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SemanticTextStats {
+    pub semantic_file_count: usize,
+
+    pub content_changed_file_count: usize,
+
+    pub rename_only_file_count: usize,
+
+    pub total_insertions: u64,
+    pub total_deletions: u64,
+
+    pub max_file_changed_lines: u64,
+}
+
+impl SemanticTextStats {
+    pub fn from_snapshot(snapshot: &ClassifiedSnapshot) -> Self {
+        let mut stats = Self::default();
+
+        for file in &snapshot.files {
+            if file.category != FileCategory::SemanticText {
+                continue;
+            }
+
+            stats.semantic_file_count += 1;
+
+            let insertions = file.insertions.unwrap_or(0);
+            let deletions = file.deletions.unwrap_or(0);
+            let changed_lines = insertions + deletions;
+
+            if changed_lines > 0 {
+                stats.content_changed_file_count += 1;
+            } else if file.change_type == ChangeType::Renamed {
+                stats.rename_only_file_count += 1;
+            }
+
+            stats.total_insertions += insertions;
+            stats.total_deletions += deletions;
+            stats.max_file_changed_lines = stats.max_file_changed_lines.max(changed_lines);
+        }
+
+        stats
+    }
+
+    #[inline]
+    pub const fn total_changed_lines(&self) -> u64 {
+        self.total_deletions + self.total_insertions
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DiffStrategy {
+    /// Whole semanticText diff
+    Full,
+
+    /// Max number of lines per file at `max_changed_lines_per_file`
+    TruncateLines { max_changed_lines_per_file: u64 },
+
+    /// Max number of hunks per file at `max_hunks_per_file`
+    SampleHunks { max_hunks_per_file: u32 },
+
+    /// Paths and change type only
+    PathSummaryOnly,
+}
+
+/// Planner verdict for one classified snapshot.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BudgetDecision {
+    pub strategy: DiffStrategy,
+
+    /// Estimate after `safety_factor_bps`
+    pub estimated_diff_tokens: u64,
+
+    /// `context_token_limit - reserved_tokens`
+    pub available_for_diff: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BudgetPolicy {
+    pub context_token_limit: u64,
+    pub reserved_tokens: u64,
+
+    /// Path + status header of one content-changing file.
+    pub tokens_per_file_overhead: u64,
+    /// One `+` or `-` line.
+    pub tokens_per_changed_line: u64,
+    /// One rename-only entry (`old -> new`).
+    pub tokens_per_rename_only: u64,
+
+    /// Inflates the estimate before comparing against the budget.
+    /// 10000 = 1.0, 12000 = 1.2.
+    pub safety_factor_bps: u32,
+
+    /// If estimate > available × this, skip truncation and go path-only.
+    pub summary_only_multiplier: u32,
+
+    /// TruncateLines strategy
+    pub max_changed_lines_per_file: u64,
+
+    /// SampleHunks strategy
+    pub max_hunks_per_file: u32,
+}
+
+impl BudgetPolicy {
+    pub fn default() -> Self {
+        Self {
+            context_token_limit: 128_000,
+            reserved_tokens: 2_000,
+
+            tokens_per_file_overhead: 48,
+            tokens_per_changed_line: 10,
+            tokens_per_rename_only: 24,
+
+            safety_factor_bps: 13_000,
+            summary_only_multiplier: 3,
+
+            max_changed_lines_per_file: 400,
+            max_hunks_per_file: 8,
+        }
+    }
+
+    pub fn available_for_diff(&self) -> u64 {
+        self.context_token_limit
+            .saturating_sub(self.reserved_tokens)
+    }
+
+    pub fn estimate_diff_tokens(&self, stats: &SemanticTextStats) -> u64 {
+        // estimated = file_header_overhead + rename_entries + line_cost
+        let raw = (stats.content_changed_file_count as u64)
+            .saturating_mul(self.tokens_per_file_overhead)
+            .saturating_add(
+                (stats.rename_only_file_count as u64).saturating_mul(self.tokens_per_rename_only),
+            )
+            .saturating_add(
+                stats
+                    .total_changed_lines()
+                    .saturating_mul(self.tokens_per_changed_line),
+            );
+
+        raw.saturating_mul(u64::from(self.safety_factor_bps)) / 10_000
     }
 }
