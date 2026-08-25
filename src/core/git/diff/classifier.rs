@@ -19,9 +19,9 @@ impl<'a> FileClassifier<'a> {
 
     pub async fn classify(
         &self,
-        snapchat: &StagedSnapshot,
+        snapshot: &StagedSnapshot,
     ) -> Result<ClassifiedSnapshot, GitError> {
-        let mut files = snapchat.files.clone();
+        let mut files = snapshot.files.clone();
         let mut probes: Vec<(usize, String)> = Vec::new();
 
         // Phase A: path / basename only
