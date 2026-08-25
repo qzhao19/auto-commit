@@ -342,7 +342,7 @@ async fn two_modified_files_collect_counts() {
         .await
         .unwrap();
 
-    assert_eq!(snapshot.total_files(), 2);
+    assert_eq!(snapshot.files.len(), 2);
 
     let a = find(&snapshot, "a.txt");
     assert_eq!(a.change_type, ChangeType::Modified);
@@ -354,9 +354,28 @@ async fn two_modified_files_collect_counts() {
     assert_eq!(b.insertions, Some(0));
     assert_eq!(b.deletions, Some(1));
 
-    assert_eq!(snapshot.total_insertions(), 2);
-    assert_eq!(snapshot.total_deletions(), 2);
-    assert_eq!(snapshot.text_file_count(), 0);
+    assert_eq!(
+        snapshot
+            .files
+            .iter()
+            .filter_map(|f| f.insertions)
+            .sum::<u64>(),
+        2
+    );
+    assert_eq!(
+        snapshot
+            .files
+            .iter()
+            .filter_map(|f| f.deletions)
+            .sum::<u64>(),
+        2
+    );
+    assert!(
+        snapshot
+            .files
+            .iter()
+            .all(|f| f.category == FileCategory::Unknown)
+    );
 }
 
 #[tokio::test]
@@ -405,8 +424,13 @@ async fn renamed_file_collects_old_path_and_similarity() {
         .await
         .unwrap();
 
-    assert!(snapshot.has_rename());
-    assert_eq!(snapshot.total_files(), 1);
+    assert!(
+        snapshot
+            .files
+            .iter()
+            .any(|f| f.change_type == ChangeType::Renamed)
+    );
+    assert_eq!(snapshot.files.len(), 1);
 
     let r = find(&snapshot, "r2.txt");
     assert_eq!(r.change_type, ChangeType::Renamed);
@@ -435,7 +459,14 @@ async fn binary_file_flagged() {
         .await
         .unwrap();
 
-    assert_eq!(snapshot.binary_file_count(), 1);
+    assert_eq!(
+        snapshot
+            .files
+            .iter()
+            .filter(|f| f.category == FileCategory::Binary)
+            .count(),
+        1
+    );
 
     let t = find(&snapshot, "t.txt");
     assert_eq!(t.category, FileCategory::Binary);
@@ -478,7 +509,14 @@ async fn gitlink_staged_as_submodule() {
         .await
         .unwrap();
 
-    assert_eq!(snapshot.submodule_file_count(), 1);
+    assert_eq!(
+        snapshot
+            .files
+            .iter()
+            .filter(|f| f.category == FileCategory::Submodule)
+            .count(),
+        1
+    );
 
     let sub = find(&snapshot, "sub");
     assert_eq!(sub.change_type, ChangeType::Added);
@@ -507,7 +545,5 @@ async fn empty_staging_yields_empty_snapshot() {
         .await
         .unwrap();
 
-    assert_eq!(snapshot.total_files(), 0);
-    assert_eq!(snapshot.binary_file_count(), 0);
-    assert!(!snapshot.has_rename());
+    assert!(snapshot.files.is_empty());
 }
