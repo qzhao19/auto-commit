@@ -68,11 +68,9 @@ pub struct RepositoryContext {
     pub git_paths: GitPaths,
 
     /// HEAD commit object ID.
-    /// `None` means the repository has no commits yet.
     pub head_oid: Option<String>,
 
     /// Current branch name.
-    /// `None` means detached HEAD.
     pub branch: Option<String>,
 }
 
@@ -276,33 +274,6 @@ impl SemanticTextStats {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DiffStrategy {
-    /// Whole semanticText diff
-    Full,
-
-    /// Max number of lines per file at `max_changed_lines_per_file`
-    TruncateLines { max_changed_lines_per_file: u64 },
-
-    /// Max number of hunks per file at `max_hunks_per_file`
-    SampleHunks { max_hunks_per_file: u32 },
-
-    /// Paths and change type only
-    PathSummaryOnly,
-}
-
-/// Planner verdict for one classified snapshot.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BudgetDecision {
-    pub strategy: DiffStrategy,
-
-    /// Estimate after `safety_factor_bps`
-    pub estimated_diff_tokens: u64,
-
-    /// `context_token_limit - reserved_tokens`
-    pub available_for_diff: u64,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BudgetPolicy {
     pub context_token_limit: u64,
     pub reserved_tokens: u64,
@@ -366,4 +337,41 @@ impl BudgetPolicy {
 
         raw.saturating_mul(u64::from(self.safety_factor_bps)) / 10_000
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DiffStrategy {
+    /// Whole semanticText diff
+    Full,
+
+    /// Max number of lines per file at `max_changed_lines_per_file`
+    TruncateLines { max_changed_lines_per_file: u64 },
+
+    /// Max number of hunks per file at `max_hunks_per_file`
+    SampleHunks {
+        max_hunks_per_file: u32,
+        max_changed_lines_per_file: u64,
+    },
+
+    /// Paths and change type only
+    PathSummaryOnly,
+}
+
+/// Planner dict for one classified snapshot.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BudgetDecision {
+    pub strategy: DiffStrategy,
+
+    /// Estimate after `safety_factor_bps`
+    pub estimated_diff_tokens: u64,
+
+    /// `context_token_limit - reserved_tokens`
+    pub available_for_diff: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct DiffPayload {
+    pub body: String,
+    pub file_count: usize,
+    pub truncated_file_count: usize,
 }
