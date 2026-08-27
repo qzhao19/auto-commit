@@ -30,12 +30,6 @@ const BINARY_PROBE_EXIT_CODES: &[i32] = &[0, 1];
 /// 8. Verify staged changes exist.
 /// 9. Build RepositoryContext.
 ///
-/// A successful result guarantees that the repository is:
-///
-/// - a valid Git repository
-/// - non-bare
-/// - not blocked by index.lock
-/// - has staged changes
 pub struct RepoPreflightCollector<'a> {
     runner: &'a GitRunner,
 }
@@ -190,17 +184,15 @@ impl<'a> RepoPreflightCollector<'a> {
         // `run` only returns Ok for exit codes in the allow-list {0, 1}.
         match result.exit_code {
             0 => match result.stdout_str().trim() {
-                // Exit 0 must print the OID; empty output is an anomaly,
-                // not an unborn HEAD (that is exit 1 below).
+                // Exit 0 must print the OID, empty output is an anomaly,
                 "" => Err(GitError::new(
                     GitErrorCode::CommandFailed,
                     "git rev-parse --verify HEAD exited 0 but printed no commit id",
                 )),
                 oid => Ok(Some(oid.to_owned())),
             },
-            // `-q --verify HEAD` exits 1: no commits yet.
-            1 => Ok(None),
-            code => unreachable!("unexpected exit code {code} outside allow-list {{0, 1}}"),
+            // `-q --verify HEAD` exits 1: no commits yet
+            _ => Ok(None),
         }
     }
 
@@ -233,7 +225,7 @@ impl<'a> RepoPreflightCollector<'a> {
 
         // `run` only returns Ok for exit codes in {0, 1}:
         // 0 = index matches HEAD (nothing staged)
-        // 1 = differences staged.
+        // 1 = differences staged
         Ok(result.exit_code == 1)
     }
 
@@ -290,7 +282,7 @@ impl<'a> RepoPreflightCollector<'a> {
     }
 
     async fn has_untracked_files(&self) -> Result<bool, GitError> {
-        // Non-ignored untracked files; empty output means none exist.
+        // Non-ignored untracked files
         let result = self
             .runner
             .run(&["ls-files", "--others", "--exclude-standard"], None)
