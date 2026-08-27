@@ -90,6 +90,28 @@ impl RepositoryContext {
 
 // ---- Git operation state ----
 
+/// Merge operation
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Operation {
+    Rebase,
+    Merge,
+    Squash,
+    CherryPick,
+    Revert,
+}
+
+impl Operation {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Rebase => "rebase",
+            Self::Merge => "merge",
+            Self::Squash => "squash",
+            Self::CherryPick => "cherry-pick",
+            Self::Revert => "revert",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OperationAction {
     Abort,
@@ -99,10 +121,13 @@ pub enum OperationAction {
 }
 
 /// Detection ops state:
-/// conflicts → bisect → rebase → merge → squash → cherry-pick → revert → clean.
+/// bisect → rebase → merge → squash → cherry-pick → revert →
+/// conflicts → clean.
 #[derive(Debug, Clone, PartialEq)]
 pub enum OperationState {
-    Conflicts,
+    Conflicts {
+        context: Option<Operation>,
+    },
     Bisect,
     Rebase {
         message: Option<String>,
@@ -125,10 +150,21 @@ pub enum OperationState {
 }
 
 impl OperationState {
+    pub fn kind(&self) -> Option<Operation> {
+        match self {
+            Self::Rebase { .. } => Some(Operation::Rebase),
+            Self::Merge { .. } => Some(Operation::Merge),
+            Self::Squash { .. } => Some(Operation::Squash),
+            Self::CherryPick { .. } => Some(Operation::CherryPick),
+            Self::Revert { .. } => Some(Operation::Revert),
+            Self::Conflicts { .. } | Self::Bisect | Self::Clean => None,
+        }
+    }
+
     /// Action the pipeline should take for this detected state
     pub fn action(&self) -> OperationAction {
         match self {
-            Self::Conflicts | Self::Bisect => OperationAction::Abort,
+            Self::Conflicts { .. } | Self::Bisect => OperationAction::Abort,
             Self::Rebase { .. } | Self::Merge { .. } | Self::Squash { .. } => {
                 OperationAction::Reuse
             }
@@ -137,13 +173,9 @@ impl OperationState {
         }
     }
 
-    /// Seed message for later stages:
-    /// - reuse
-    /// - hand to the LLM for polishing.
-    /// - `None` for abort/clean states or when the source is unavailable
     pub fn seed_message(&self) -> Option<String> {
         match self {
-            Self::Conflicts | Self::Bisect | Self::Clean => None,
+            Self::Conflicts { .. } | Self::Bisect | Self::Clean => None,
             Self::Rebase { message } | Self::Merge { message } | Self::Squash { message } => {
                 message.clone()
             }
