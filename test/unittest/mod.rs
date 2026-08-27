@@ -1,5 +1,6 @@
 mod test_budget_planner;
 mod test_config_loader;
+mod test_diff_extractor;
 mod test_diff_rules;
 mod test_file_classifier;
 mod test_git_runner;
