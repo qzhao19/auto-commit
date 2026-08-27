@@ -8,14 +8,14 @@ use crate::shared::exception::{GitError, GitErrorCode};
 ///
 /// Responsibilities:
 ///
-/// 1. unresolved conflicts (`git ls-files --unmerged`)   → ABORT
-/// 2. bisect (`BISECT_LOG`)                              → ABORT
-/// 3. rebase (`rebase-merge/` or `rebase-apply/`)        → REUSE
-/// 4. merge (`MERGE_HEAD`)                               → REUSE / TEMPLATE
-/// 5. squash (`SQUASH_MSG` without `MERGE_HEAD`)         → REUSE / TEMPLATE
-/// 6. cherry-pick (`CHERRY_PICK_HEAD`)                   → TEMPLATE
-/// 7. revert (`REVERT_HEAD`)                             → TEMPLATE
-/// 8. clean                                              → continue to stage 2
+/// 1. bisect (`BISECT_LOG`)                              → ABORT
+/// 2. rebase (`rebase-merge/` or `rebase-apply/`)        → REUSE
+/// 3. merge (`MERGE_HEAD`)                               → REUSE
+/// 4. squash (`SQUASH_MSG`, no `MERGE_HEAD`)             → REUSE
+/// 5. cherry-pick (`CHERRY_PICK_HEAD`)                   → TEMPLATE
+/// 6. revert (`REVERT_HEAD`)                             → TEMPLATE
+/// 7. unmerged index → CONFLICTS, carrying the owning operation
+/// 8. clean
 ///
 pub struct OperationStateDetector<'a> {
     runner: &'a GitRunner,
@@ -29,51 +29,59 @@ impl<'a> OperationStateDetector<'a> {
     pub async fn run(&self, ctx: &RepositoryContext) -> Result<OperationState, GitError> {
         let paths = &ctx.git_paths;
 
-        // 1.1 Conflict: a conflicted rebase leaves both unmerged
-        // entries AND rebase-merge
-        if self.has_unmerged_entries().await? {
-            return Ok(OperationState::Conflicts);
-        }
-
-        // 1.2 Bisect → hard abort.
+        // 1.1 Bisect → hard abort.
         if Self::path_exists(&paths.bisect_log)? {
             return Ok(OperationState::Bisect);
         }
 
-        // 1.3 Rebase
+        let in_progress = self.probe_active_operation(paths).await?;
+
+        if self.has_unmerged_entries().await? {
+            return Ok(OperationState::Conflicts {
+                context: in_progress.as_ref().and_then(OperationState::kind),
+            });
+        }
+
+        Ok(in_progress.unwrap_or(OperationState::Clean))
+    }
+
+    async fn probe_active_operation(
+        &self,
+        paths: &GitPaths,
+    ) -> Result<Option<OperationState>, GitError> {
+        // 1.2 Rebase
         if Self::path_exists(&paths.rebase_merge)? || Self::path_exists(&paths.rebase_apply)? {
             let message = self.read_rebase_seed(paths).await?;
-            return Ok(OperationState::Rebase { message });
+            return Ok(Some(OperationState::Rebase { message }));
         }
 
-        // 1.6 Merge
+        // 1.3 Rebase
         if Self::path_exists(&paths.merge_head)? {
             let message = Self::read_msg_file(&paths.merge_msg)?;
-            return Ok(OperationState::Merge { message });
+            return Ok(Some(OperationState::Merge { message }));
         }
 
-        // 1.7 Squash: SQUASH_MSG without MERGE_HEAD.
+        // 1.4 Squash: SQUASH_MSG without MERGE_HEAD
         if Self::path_exists(&paths.squash_msg)? {
             let message = Self::read_msg_file(&paths.squash_msg)?;
-            return Ok(OperationState::Squash { message });
+            return Ok(Some(OperationState::Squash { message }));
         }
 
-        // 1.4 Cherry-pick.
+        // 1.5 Cherry-pick
         if Self::path_exists(&paths.cherry_pick_head)? {
             let head = Self::read_head_oid(&paths.cherry_pick_head)?;
             let subject = self.head_subject(&head).await?;
-            return Ok(OperationState::CherryPick { head, subject });
+            return Ok(Some(OperationState::CherryPick { head, subject }));
         }
 
-        // 1.5 Revert.
+        // Revert
         if Self::path_exists(&paths.revert_head)? {
             let head = Self::read_head_oid(&paths.revert_head)?;
             let subject = self.head_subject(&head).await?;
-            return Ok(OperationState::Revert { head, subject });
+            return Ok(Some(OperationState::Revert { head, subject }));
         }
 
-        // 1.8 Clean.
-        Ok(OperationState::Clean)
+        Ok(None)
     }
 
     // `git ls-files --unmerged` output = unresolved conflicts
