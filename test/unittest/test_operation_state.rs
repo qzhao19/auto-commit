@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::core::git::operation::OperationStateDetector;
-use crate::core::git::types::{GitPaths, OperationState, RepositoryContext};
+use crate::core::git::types::{GitPaths, Operation, OperationState, RepositoryContext};
 use crate::infra::git::GitRunner;
 
 //  helpers
@@ -131,7 +131,13 @@ async fn merge_conflict_yields_Conflicts() {
         .await
         .unwrap();
 
-    assert_eq!(state, OperationState::Conflicts);
+    // merge_conflict_yields_Conflicts 内
+    assert_eq!(
+        state,
+        OperationState::Conflicts {
+            context: Some(Operation::Merge),
+        }
+    );
 }
 
 //  1.2 bisect
@@ -434,7 +440,12 @@ async fn conflicted_rebase_yields_Conflicts_not_Rebase() {
         .await
         .unwrap();
 
-    assert_eq!(state, OperationState::Conflicts);
+    assert_eq!(
+        state,
+        OperationState::Conflicts {
+            context: Some(Operation::Rebase),
+        }
+    );
 }
 
 #[tokio::test]
@@ -463,7 +474,12 @@ async fn conflicted_merge_yields_Conflicts_not_Merge() {
         .await
         .unwrap();
 
-    assert_eq!(state, OperationState::Conflicts);
+    assert_eq!(
+        state,
+        OperationState::Conflicts {
+            context: Some(Operation::Merge),
+        }
+    );
 }
 
 #[tokio::test]
@@ -491,6 +507,37 @@ async fn merge_takes_precedence_over_squash() {
         state,
         OperationState::Merge {
             message: Some("Merge branch 'feature'".to_owned())
+        }
+    );
+}
+
+#[tokio::test]
+async fn rebase_conflict_yields_Conflicts_during_rebase() {
+    let dir = TempDir::new("ops_rebase_conflict").unwrap();
+    let runner = init_repo(dir.path()).await;
+    std::fs::write(dir.path().join("f.txt"), b"base").unwrap();
+    git(&runner, &["add", "f.txt"]).await;
+    commit(&runner, "base").await;
+
+    git(&runner, &["checkout", "-b", "feature"]).await;
+    std::fs::write(dir.path().join("f.txt"), b"feature").unwrap();
+    commit(&runner, "feature change").await;
+
+    git(&runner, &["checkout", "-"]).await;
+    std::fs::write(dir.path().join("f.txt"), b"main").unwrap();
+    commit(&runner, "main change").await;
+
+    let _ = runner.run(&["rebase", "feature"], None).await;
+
+    let state = OperationStateDetector::new(&runner)
+        .run(&make_ctx(dir.path()))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        state,
+        OperationState::Conflicts {
+            context: Some(Operation::Rebase),
         }
     );
 }
