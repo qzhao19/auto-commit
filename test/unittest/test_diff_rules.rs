@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use crate::core::git::diff::rules::{
+use crate::core::git::diff::{
     classify_by_header, classify_by_name, match_generated_header, match_generated_name,
     match_generated_path, match_lock_file,
 };
