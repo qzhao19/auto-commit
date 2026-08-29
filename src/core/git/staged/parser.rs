@@ -47,6 +47,7 @@ pub fn parse_raw_entries(data: &[u8]) -> Result<Vec<RawEntry>, GitError> {
             )
         })?;
 
+        // shas are skipped positionally
         let _src_sha = tokens.next();
         let _dst_sha = tokens.next();
         let status = tokens.next().ok_or_else(|| {
@@ -59,22 +60,24 @@ pub fn parse_raw_entries(data: &[u8]) -> Result<Vec<RawEntry>, GitError> {
         let (change_type, similarity) = parse_status(status)?;
 
         let (path, old_path) = match change_type {
-            ChangeType::Renamed | ChangeType::Copied => {
+            ChangeType::Copied | ChangeType::Renamed => {
                 let old = fields.next().ok_or_else(|| {
                     GitError::new(GitErrorCode::Other, "truncated raw record for rename/copy")
                 })?;
+
                 let new = fields.next().ok_or_else(|| {
                     GitError::new(GitErrorCode::Other, "truncated raw record for rename/copy")
                 })?;
+
                 (
                     PathBuf::from(os_str(new)?),
                     Some(PathBuf::from(os_str(old)?)),
                 )
             }
             _ => {
-                let path = fields
-                    .next()
-                    .ok_or_else(|| GitError::new(GitErrorCode::Other, "truncated raw record"))?;
+                let path = fields.next().ok_or_else(|| {
+                    GitError::new(GitErrorCode::Other, format!("truncated raw record"))
+                })?;
                 (PathBuf::from(os_str(path)?), None)
             }
         };
@@ -89,16 +92,6 @@ pub fn parse_raw_entries(data: &[u8]) -> Result<Vec<RawEntry>, GitError> {
     }
 
     Ok(entries)
-}
-
-fn is_gitlink(change_type: ChangeType, src_mode: &str, dst_mode: &str) -> bool {
-    // src carries a leading `:` (e.g. `:160000`); dst does not.
-    // Classify by the post-image, except deletions which have dst `000000`.
-    let src = src_mode.strip_prefix(':').unwrap_or(src_mode);
-    match change_type {
-        ChangeType::Deleted => src == SUBMODULE_MODE,
-        _ => dst_mode == SUBMODULE_MODE,
-    }
 }
 
 fn parse_status(s: &str) -> Result<(ChangeType, Option<u8>), GitError> {
@@ -156,6 +149,7 @@ pub fn parse_numstat(data: &[u8], entries: &[RawEntry]) -> Result<Vec<NumstatRow
                 "numstat ended before raw (record count mismatch)",
             )
         })?;
+
         if counts.is_empty() {
             return Err(GitError::new(
                 GitErrorCode::Other,
@@ -176,8 +170,8 @@ pub fn parse_numstat(data: &[u8], entries: &[RawEntry]) -> Result<Vec<NumstatRow
 
         let row = parse_numstat_counts(parts[0], parts[1])?;
 
-        let (numstat_new, numstat_old) = match entry.change_type {
-            ChangeType::Renamed | ChangeType::Copied => {
+        let (numstat_path, numstat_old_path) = match entry.change_type {
+            ChangeType::Copied | ChangeType::Renamed => {
                 if !parts[2].is_empty() {
                     return Err(GitError::new(
                         GitErrorCode::Other,
@@ -187,6 +181,7 @@ pub fn parse_numstat(data: &[u8], entries: &[RawEntry]) -> Result<Vec<NumstatRow
                 let old = fields.next().ok_or_else(|| {
                     GitError::new(GitErrorCode::Other, "truncated numstat path field")
                 })?;
+
                 let new = fields.next().ok_or_else(|| {
                     GitError::new(GitErrorCode::Other, "truncated numstat path field")
                 })?;
@@ -195,8 +190,10 @@ pub fn parse_numstat(data: &[u8], entries: &[RawEntry]) -> Result<Vec<NumstatRow
             _ => (parts[2], None),
         };
 
-        let paths_align = os_str(numstat_new)? == entry.path.as_os_str()
-            && match (entry.old_path.as_deref(), numstat_old) {
+        // ensures that even if raw and numstat come from the same git diff call,
+        // they will not be mismatched due to order or missing records
+        let paths_align = os_str(numstat_path)? == entry.path.as_os_str()
+            && match (entry.old_path.as_deref(), numstat_old_path) {
                 (Some(old), Some(bytes)) => old.as_os_str() == os_str(bytes)?,
                 (None, None) => true,
                 _ => false,
@@ -206,7 +203,7 @@ pub fn parse_numstat(data: &[u8], entries: &[RawEntry]) -> Result<Vec<NumstatRow
                 GitErrorCode::Other,
                 format!(
                     "numstat/raw path misalignment at record {index}: numstat '{}' vs raw '{}'",
-                    String::from_utf8_lossy(numstat_new),
+                    String::from_utf8_lossy(numstat_path),
                     entry.path.display()
                 ),
             ));
@@ -225,12 +222,16 @@ pub fn parse_numstat(data: &[u8], entries: &[RawEntry]) -> Result<Vec<NumstatRow
 }
 
 fn parse_numstat_counts(ins_col: &[u8], del_col: &[u8]) -> Result<NumstatRow, GitError> {
-    let to_str = |col: &[u8], what: &'static str| -> Result<&str, GitError> {
-        std::str::from_utf8(col).map_err(|e| {
+    let parse_num_column = |col: &[u8], what: &str| -> Result<u64, GitError> {
+        let s = std::str::from_utf8(col).map_err(|err| {
             GitError::new(
                 GitErrorCode::Other,
-                format!("invalid UTF-8 in numstat {what}: {e}"),
+                format!("invalid UTF-8 in numstat {what}: {err}"),
             )
+        })?;
+
+        s.parse::<u64>().map_err(|err| {
+            GitError::new(GitErrorCode::Other, format!("invalid {what} '{s}': {err}"))
         })
     };
 
@@ -242,15 +243,9 @@ fn parse_numstat_counts(ins_col: &[u8], del_col: &[u8]) -> Result<NumstatRow, Gi
         });
     }
 
-    let parse_num = |s: &str, what: &str| {
-        s.parse::<u64>().map_err(|err| {
-            GitError::new(GitErrorCode::Other, format!("invalid {what} '{s}': {err}"))
-        })
-    };
-
     Ok(NumstatRow {
-        insertions: Some(parse_num(to_str(ins_col, "insertions")?, "insertions")?),
-        deletions: Some(parse_num(to_str(del_col, "deletions")?, "deletions")?),
+        insertions: Some(parse_num_column(ins_col, "insertion")?),
+        deletions: Some(parse_num_column(del_col, "deletion")?),
         is_binary: false,
     })
 }
@@ -259,7 +254,7 @@ fn parse_numstat_counts(ins_col: &[u8], del_col: &[u8]) -> Result<NumstatRow, Gi
 
 fn split_nul(data: &[u8]) -> Vec<&[u8]> {
     let mut fields: Vec<&[u8]> = data.split(|&b| b == 0).collect();
-    // `-z` output NUL-terminates every record, strip the tailing empties
+    // `-z` output NUL-terminates every record, strip tailing empty
     while let Some(field) = fields.last() {
         if !field.is_empty() {
             break;
@@ -281,5 +276,13 @@ fn os_str(bytes: &[u8]) -> Result<&std::ffi::OsStr, GitError> {
             GitError::new(GitErrorCode::Other, format!("path is not valid UTF-8: {e}"))
         })?;
         Ok(std::ffi::OsStr::new(s))
+    }
+}
+
+fn is_gitlink(change_type: ChangeType, src_mode: &str, dst_mode: &str) -> bool {
+    let src = src_mode.strip_prefix(':').unwrap_or(src_mode);
+    match change_type {
+        ChangeType::Deleted => src == SUBMODULE_MODE,
+        _ => dst_mode == SUBMODULE_MODE,
     }
 }
