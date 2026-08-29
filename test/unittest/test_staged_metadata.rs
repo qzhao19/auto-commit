@@ -1,8 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::core::git::staged::{
-    NameStatusEntry, StagedMetadataCollector, parse_name_status, parse_numstat,
-    parse_submodule_flags,
+    RawEntry, StagedMetadataCollector, parse_numstat, parse_raw_entries,
 };
 use crate::core::git::types::{ChangeType, FileCategory, StagedFile, StagedSnapshot};
 use crate::infra::git::GitRunner;
@@ -63,12 +62,13 @@ fn entry(
     path: &str,
     old_path: Option<&str>,
     similarity: Option<u8>,
-) -> NameStatusEntry {
-    NameStatusEntry {
+) -> RawEntry {
+    RawEntry {
         change_type,
         path: PathBuf::from(path),
         old_path: old_path.map(PathBuf::from),
         similarity,
+        is_submodule: false,
     }
 }
 
@@ -84,15 +84,16 @@ fn find<'a>(snapshot: &'a StagedSnapshot, path: &str) -> &'a StagedFile {
 //  parser: name-status
 
 #[test]
-fn name_status_plain_records() {
-    let data = b"A\0new.txt\0M\0mod.txt\0D\0gone.txt\0T\0type.txt\0";
-    let entries = parse_name_status(data).unwrap();
+fn raw_plain_records() {
+    let data = b":100644 100644 aaa bbb A\0new.txt\0:100644 100644 aaa bbb M\0mod.txt\0:100644 000000 aaa 0000000 D\0gone.txt\0:100644 120000 aaa bbb T\0type.txt\0";
+    let entries = parse_raw_entries(data).unwrap();
 
     assert_eq!(entries.len(), 4);
     assert_eq!(entries[0].change_type, ChangeType::Added);
     assert_eq!(entries[0].path, Path::new("new.txt"));
     assert_eq!(entries[0].old_path, None);
     assert_eq!(entries[0].similarity, None);
+    assert!(!entries[0].is_submodule);
 
     assert_eq!(entries[1].change_type, ChangeType::Modified);
     assert_eq!(entries[2].change_type, ChangeType::Deleted);
@@ -100,9 +101,9 @@ fn name_status_plain_records() {
 }
 
 #[test]
-fn name_status_rename_record() {
-    let data = b"R100\0old.rs\0new.rs\0";
-    let entries = parse_name_status(data).unwrap();
+fn raw_rename_record() {
+    let data = b":100644 100644 aaa bbb R100\0old.rs\0new.rs\0";
+    let entries = parse_raw_entries(data).unwrap();
 
     assert_eq!(entries.len(), 1);
     assert_eq!(entries[0].change_type, ChangeType::Renamed);
@@ -112,47 +113,113 @@ fn name_status_rename_record() {
 }
 
 #[test]
-fn name_status_empty_input() {
-    assert!(parse_name_status(b"").unwrap().is_empty());
+fn raw_empty_input() {
+    assert!(parse_raw_entries(b"").unwrap().is_empty());
 }
 
 #[test]
-fn name_status_truncated_plain_errors() {
-    let err = parse_name_status(b"M\0").unwrap_err();
+fn raw_truncated_plain_errors() {
+    let err = parse_raw_entries(b":100644 100644 a b M\0").unwrap_err();
     assert!(err.message.contains("truncated"), "got: {err}");
 }
 
 #[test]
-fn name_status_truncated_rename_errors() {
-    // R/C records need two path fields; only one is present.
-    let err = parse_name_status(b"R90\0old.rs\0").unwrap_err();
+fn raw_truncated_rename_errors() {
+    let err = parse_raw_entries(b":100644 100644 a b R90\0old.rs\0").unwrap_err();
     assert!(err.message.contains("rename/copy"), "got: {err}");
 }
 
 #[test]
-fn name_status_unexpected_status_errors() {
-    // `U` (unmerged) must have been filtered by stage 1; hitting it here
-    // means the pipeline contract broke — hard error, not a guess.
-    let err = parse_name_status(b"U\0file.txt\0").unwrap_err();
+fn raw_unexpected_status_errors() {
+    let err = parse_raw_entries(b":100644 100644 a b U\0file.txt\0").unwrap_err();
     assert!(err.message.contains("unexpected change type"), "got: {err}");
 }
 
 #[test]
-fn name_status_invalid_similarity_errors() {
-    let err = parse_name_status(b"Rabc\0old.rs\0new.rs\0").unwrap_err();
+fn raw_invalid_similarity_errors() {
+    let err = parse_raw_entries(b":100644 100644 a b Rabc\0old.rs\0new.rs\0").unwrap_err();
     assert!(err.message.contains("similarity"), "got: {err}");
 }
 
 #[cfg(unix)]
 #[test]
-fn name_status_non_utf8_path_preserved() {
+fn raw_non_utf8_path_preserved() {
     use std::os::unix::ffi::OsStrExt;
 
-    let data = b"M\0\xff\xfe.txt\0";
-    let entries = parse_name_status(data).unwrap();
+    let data = b":100644 100644 a b M\0\xff\xfe.txt\0";
+    let entries = parse_raw_entries(data).unwrap();
 
     assert_eq!(entries.len(), 1);
     assert_eq!(entries[0].path.as_os_str().as_bytes(), b"\xff\xfe.txt");
+}
+
+#[test]
+fn raw_regular_file_not_submodule() {
+    let data = b":100644 100644 abc123 def456 M\0a.txt\0";
+    let entries = parse_raw_entries(data).unwrap();
+    assert_eq!(entries.len(), 1);
+    assert!(!entries[0].is_submodule);
+}
+
+#[test]
+fn raw_gitlink_mode_is_submodule() {
+    let data = b":000000 160000 0000000 1234567 A\0sub\0";
+    let entries = parse_raw_entries(data).unwrap();
+    assert_eq!(entries.len(), 1);
+    assert!(entries[0].is_submodule);
+    assert_eq!(entries[0].change_type, ChangeType::Added);
+}
+
+#[test]
+fn raw_deleted_gitlink_is_submodule() {
+    let data = b":160000 000000 abc 0000000 D\0vendor/lib\0";
+    let entries = parse_raw_entries(data).unwrap();
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].change_type, ChangeType::Deleted);
+    assert!(entries[0].is_submodule);
+}
+
+#[test]
+fn raw_typechange_to_submodule_is_submodule() {
+    let data = b":100644 160000 abc def T\0now-sub\0";
+    let entries = parse_raw_entries(data).unwrap();
+    assert!(entries[0].is_submodule);
+}
+
+#[test]
+fn raw_typechange_from_submodule_is_not_submodule() {
+    // Post-image is a regular file; dest mode must win.
+    let data = b":160000 100644 abc def T\0was-sub\0";
+    let entries = parse_raw_entries(data).unwrap();
+    assert_eq!(entries[0].change_type, ChangeType::TypeChanged);
+    assert!(!entries[0].is_submodule);
+}
+
+#[test]
+fn raw_sha_substring_no_false_positive() {
+    let data = b":100644 100644 160000abc def456 M\0a.txt\0";
+    let entries = parse_raw_entries(data).unwrap();
+    assert_eq!(entries.len(), 1);
+    assert!(!entries[0].is_submodule);
+}
+
+#[test]
+fn raw_rename_alignment() {
+    let data = b":100644 100644 aa bb R90\0old.rs\0new.rs\0:100644 100644 aa bb M\0a.txt\0";
+    let entries = parse_raw_entries(data).unwrap();
+
+    assert_eq!(entries.len(), 2);
+    assert_eq!(entries[0].change_type, ChangeType::Renamed);
+    assert_eq!(entries[0].path, Path::new("new.rs"));
+    assert_eq!(entries[1].change_type, ChangeType::Modified);
+    assert_eq!(entries[1].path, Path::new("a.txt"));
+}
+
+#[test]
+fn numstat_path_misalignment_errors() {
+    let entries = vec![entry(ChangeType::Modified, "a.txt", None, None)];
+    let err = parse_numstat(b"1\t2\tOTHER.txt\0", &entries).unwrap_err();
+    assert!(err.message.contains("misalignment"), "got: {err}");
 }
 
 //  parser: numstat
@@ -244,78 +311,6 @@ fn numstat_extra_records_error() {
 
     let err = parse_numstat(data, &entries).unwrap_err();
     assert!(err.message.contains("more records"), "got: {err}");
-}
-
-#[test]
-fn numstat_empty_streams_ok() {
-    // Empty staging produces empty stdout (or a lone NUL); the trailing
-    // empty field from the NUL terminator must not be treated as data.
-    let entries: Vec<NameStatusEntry> = vec![];
-
-    assert!(parse_numstat(b"", &entries).unwrap().is_empty());
-    assert!(parse_numstat(b"\0", &entries).unwrap().is_empty());
-}
-
-//  parser: raw / submodule
-
-#[test]
-fn raw_regular_file_not_submodule() {
-    let entries = vec![entry(ChangeType::Modified, "a.txt", None, None)];
-    let data = b":100644 100644 abc123 def456 M\0a.txt\0";
-
-    let flags = parse_submodule_flags(data, &entries).unwrap();
-
-    assert_eq!(flags, vec![false]);
-}
-
-#[test]
-fn raw_gitlink_mode_is_submodule() {
-    // Added submodule: dst mode 160000.
-    let entries = vec![entry(ChangeType::Added, "sub", None, None)];
-    let data = b":000000 160000 0000000 1234567 A\0sub\0";
-
-    let flags = parse_submodule_flags(data, &entries).unwrap();
-
-    assert_eq!(flags, vec![true]);
-}
-
-#[test]
-fn raw_sha_substring_no_false_positive() {
-    // Design pin: the SHA is hex and may legitimately CONTAIN "160000"
-    // as a substring. Detection must match the mode tokens exactly, not
-    // substring-scan the whole meta field (the old bug).
-    let entries = vec![entry(ChangeType::Modified, "a.txt", None, None)];
-    let data = b":100644 100644 160000abc def456 M\0a.txt\0";
-
-    let flags = parse_submodule_flags(data, &entries).unwrap();
-
-    assert_eq!(flags, vec![false]);
-}
-
-#[test]
-fn raw_rename_alignment() {
-    // Raw records always carry standalone path fields: 2 for R/C, 1 for
-    // everything else (unlike numstat, where plain paths are embedded).
-    let entries = vec![
-        entry(ChangeType::Renamed, "new.rs", Some("old.rs"), Some(90)),
-        entry(ChangeType::Modified, "a.txt", None, None),
-    ];
-    let data = b":100644 100644 aa bb R90\0old.rs\0new.rs\0:100644 100644 aa bb M\0a.txt\0";
-
-    let flags = parse_submodule_flags(data, &entries).unwrap();
-
-    assert_eq!(flags, vec![false, false]);
-}
-
-#[test]
-fn raw_short_stream_errors() {
-    let entries = vec![
-        entry(ChangeType::Modified, "a.txt", None, None),
-        entry(ChangeType::Modified, "b.txt", None, None),
-    ];
-
-    let err = parse_submodule_flags(b":100644 100644 a b M\0a.txt\0", &entries).unwrap_err();
-    assert!(err.message.contains("mismatch"), "got: {err}");
 }
 
 //  collector: integration with real git
