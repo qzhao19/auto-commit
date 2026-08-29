@@ -56,8 +56,7 @@ impl<'a> StagedMetadataCollector<'a> {
         let mut files = Vec::with_capacity(entries.len());
 
         for (entry, stat) in entries.into_iter().zip(stats) {
-            // Submodule > Binary > Unknown. Mode must win: a gitlink's
-            // numstat is often `1 0` ("Subproject commit"), not `- -`.
+            // Submodule > Binary > Unknown
             let category = if entry.is_submodule {
                 FileCategory::Submodule
             } else if stat.is_binary {
