@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use crate::core::git::diff::classifier::FileClassifier;
+use crate::core::git::diff::FileClassifier;
 use crate::core::git::types::{
     ChangeType, ClassifiedSnapshot, FileCategory, StagedFile, StagedSnapshot,
 };
