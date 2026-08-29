@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
-use crate::core::git::diff::extractor::DiffExtractor;
-use crate::core::git::diff::extractor::{path_summary, split_sections, truncate_section};
+use crate::core::git::diff::DiffExtractor;
+use crate::core::git::diff::{path_summary, split_sections, truncate_section};
 use crate::core::git::types::{
     BudgetDecision, ChangeType, ClassifiedSnapshot, DiffStrategy, FileCategory, StagedFile,
 };
