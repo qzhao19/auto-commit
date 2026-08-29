@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::core::git::diff::planner::BudgetPlanner;
+use crate::core::git::diff::BudgetPlanner;
 use crate::core::git::types::{
     BudgetPolicy, ChangeType, ClassifiedSnapshot, DiffStrategy, FileCategory, StagedFile,
 };
