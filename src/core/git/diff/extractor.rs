@@ -6,6 +6,22 @@ use crate::shared::exception::GitError;
 
 const DIFF_PREFIX: &str = "diff --git ";
 
+const LOCK_SUMMARY_DEFAULT_CAPACITY: u64 = 64;
+
+const NO_NEWLINE_MARKER: &str = "\\ No newline at end of file";
+
+const LOCK_SIGNAL_ATOMS: &[&str] = &[
+    "version",
+    "name",
+    "revision",
+    "specifier",
+    "identity",
+    "rrev",
+    "remotesha",
+];
+
+const LOCK_SIGNAL_JSON_KEYS: &[&str] = &["\"rev\"", "\"ref\"", "\"repo\""];
+
 pub struct DiffExtractor<'a> {
     runner: &'a GitRunner,
 }
@@ -44,13 +60,22 @@ impl<'a> DiffExtractor<'a> {
     }
 
     async fn fetch_full(&self, snapshot: &ClassifiedSnapshot) -> Result<DiffPayload, GitError> {
-        let paths = collect_paths(snapshot);
-        if paths.is_empty() {
-            return Ok(DiffPayload::default());
+        let paths = collect_paths_by_category(snapshot, FileCategory::SemanticText);
+        let mut body = String::new();
+        let mut file_count = 0;
+
+        if !paths.is_empty() {
+            body = self.fetch(&paths).await?;
+            file_count = split_sections(&body).len();
         }
 
-        let body = self.fetch(&paths).await?;
-        let file_count = split_sections(&body).len();
+        self.append_lock_digest(
+            &mut body,
+            &mut file_count,
+            snapshot,
+            LOCK_SUMMARY_DEFAULT_CAPACITY,
+        )
+        .await?;
 
         Ok(DiffPayload {
             body,
@@ -65,30 +90,56 @@ impl<'a> DiffExtractor<'a> {
         max_changed_lines: u64,
         max_hunks: Option<u32>,
     ) -> Result<DiffPayload, GitError> {
-        let paths = collect_paths(snapshot);
-        if paths.is_empty() {
-            return Ok(DiffPayload::default());
-        }
-
-        let raw = self.fetch(&paths).await?;
-        let sections = split_sections(&raw);
-        let file_count = sections.len();
+        let paths = collect_paths_by_category(snapshot, FileCategory::SemanticText);
         let mut body = String::new();
+        let mut file_count = 0;
         let mut truncated_file_count = 0;
 
-        for section in sections {
-            let (text, is_truncated) = truncate_section(section, max_changed_lines, max_hunks);
-            if is_truncated {
-                truncated_file_count += 1;
+        if !paths.is_empty() {
+            let raw = self.fetch(&paths).await?;
+            let sections = split_sections(&raw);
+            file_count = sections.len();
+
+            for section in sections {
+                let (text, is_truncated) = truncate_section(section, max_changed_lines, max_hunks);
+                if is_truncated {
+                    truncated_file_count += 1;
+                }
+                body.push_str(&text);
             }
-            body.push_str(&text);
         }
+
+        self.append_lock_digest(&mut body, &mut file_count, snapshot, max_changed_lines)
+            .await?;
 
         Ok(DiffPayload {
             body,
             file_count,
             truncated_file_count,
         })
+    }
+
+    async fn append_lock_digest(
+        &self,
+        body: &mut String,
+        file_count: &mut usize,
+        snapshot: &ClassifiedSnapshot,
+        capacity: u64,
+    ) -> Result<(), GitError> {
+        let paths = collect_paths_by_category(snapshot, FileCategory::DependencyLock);
+        if paths.is_empty() {
+            return Ok(());
+        }
+
+        let raw = self.fetch(&paths).await?;
+        let digest = summarize_lock_diff(&raw, capacity);
+        if digest.is_empty() {
+            return Ok(());
+        }
+
+        *file_count += split_sections(&digest).len();
+        body.push_str(&digest);
+        Ok(())
     }
 
     async fn fetch(&self, paths: &[&str]) -> Result<String, GitError> {
@@ -109,22 +160,6 @@ impl<'a> DiffExtractor<'a> {
         let result = self.runner.run(&args, None).await?;
         Ok(result.stdout_str().into_owned())
     }
-}
-
-fn collect_paths(snapshot: &ClassifiedSnapshot) -> Vec<&str> {
-    snapshot
-        .files
-        .iter()
-        .filter(|file| file.category == FileCategory::SemanticText)
-        .filter_map(|file| {
-            let path = file.path.to_str()?;
-            if path.is_empty() || path.contains('\n') {
-                None
-            } else {
-                Some(path)
-            }
-        })
-        .collect()
 }
 
 pub fn split_sections(diff: &str) -> Vec<&str> {
@@ -154,11 +189,6 @@ pub fn truncate_section(
     max_changed_lines: u64,
     max_hunks: Option<u32>,
 ) -> (String, bool) {
-    let is_changed_line = |line: &str| -> bool {
-        (line.starts_with('+') && !line.starts_with("+++"))
-            || (line.starts_with('-') && !line.starts_with("---"))
-    };
-
     let mut kept_body = String::new();
     let mut kept_changed_lines = 0u64;
     let mut kept_hunks = 0u32;
@@ -209,12 +239,87 @@ pub fn truncate_section(
     (kept_body, truncating)
 }
 
+pub fn summarize_lock_diff(diff: &str, capacity: u64) -> String {
+    let mut kept = String::new();
+    let mut kept_changed_lines = 0u64;
+    let mut truncated_changed_lines = 0u64;
+    let mut truncating = false;
+    let mut last_kept_was_changed = false;
+    let mut pending_header: Option<&str> = None;
+    let mut pending_context: Option<&str> = None;
+
+    for line in diff.split_inclusive('\n') {
+        let content = line.trim_end_matches(['\r', '\n']);
+
+        // Get the hunk header of git diff
+        if content.starts_with(DIFF_PREFIX) {
+            pending_header = Some(line);
+            pending_context = None;
+            last_kept_was_changed = false;
+            continue;
+        }
+
+        if content == NO_NEWLINE_MARKER {
+            if last_kept_was_changed && !truncating {
+                kept.push_str(line);
+            }
+            continue;
+        }
+
+        // Capture the context line (not the modified line)
+        if content.starts_with(' ') {
+            pending_context = Some(line);
+            continue;
+        }
+
+        // Process modified lines (+ or -)
+        if is_changed_line(content) && is_lock_signal_line(content) {
+            if truncating || kept_changed_lines >= capacity {
+                truncating = true;
+                truncated_changed_lines += 1;
+                pending_header = None;
+                pending_context = None;
+                last_kept_was_changed = false;
+                continue;
+            }
+
+            if let Some(header) = pending_header.take() {
+                kept.push_str(header);
+            }
+            if let Some(context) = pending_context.take() {
+                kept.push_str(context);
+            }
+            kept.push_str(line);
+            kept_changed_lines += 1;
+            last_kept_was_changed = true;
+            continue;
+        }
+
+        pending_context = None;
+        last_kept_was_changed = false;
+    }
+
+    if truncated_changed_lines > 0 {
+        if !kept.is_empty() && !kept.ends_with('\n') {
+            kept.push('\n');
+        }
+        kept.push_str(&format!(
+            "... [{truncated_changed_lines} more dependency lines truncated]\n"
+        ));
+    }
+
+    kept
+}
+
 pub fn path_summary(snapshot: &ClassifiedSnapshot) -> DiffPayload {
     let mut body = String::new();
     let mut file_count = 0usize;
 
     for file in &snapshot.files {
-        if file.category != FileCategory::SemanticText {
+        if !matches!(
+            file.category,
+            FileCategory::SemanticText | FileCategory::DependencyLock
+        ) {
             continue;
         }
         file_count += 1;
@@ -246,4 +351,64 @@ pub fn path_summary(snapshot: &ClassifiedSnapshot) -> DiffPayload {
         file_count,
         truncated_file_count: 0,
     }
+}
+
+// Helper function
+
+fn collect_paths_by_category(snapshot: &ClassifiedSnapshot, categiry: FileCategory) -> Vec<&str> {
+    snapshot
+        .files
+        .iter()
+        .filter(|file| file.category == categiry)
+        .filter_map(|file| {
+            let path = file.path.to_str()?;
+            if path.is_empty() || path.contains('\n') {
+                None
+            } else {
+                Some(path)
+            }
+        })
+        .collect()
+}
+
+fn is_changed_line(line: &str) -> bool {
+    (line.starts_with('+') && !line.starts_with("++"))
+        || (line.starts_with('-') && !line.starts_with("--"))
+}
+
+fn contains_dotted_number(line: &str) -> bool {
+    line.as_bytes()
+        .windows(3)
+        .any(|w| w[0].is_ascii_digit() && w[1] == b'.' && w[2].is_ascii_digit())
+}
+
+fn diff_payload(line: &str) -> &str {
+    match line.as_bytes().first() {
+        Some(b'+' | b'-' | b' ') if line.len() > 1 => line[1..].trim_start(),
+        _ => line.trim_start(),
+    }
+}
+
+pub fn is_lock_signal_line(line: &str) -> bool {
+    let lower = line.to_ascii_lowercase();
+
+    if LOCK_SIGNAL_ATOMS.iter().any(|atom| lower.contains(atom)) {
+        return true;
+    }
+
+    if LOCK_SIGNAL_JSON_KEYS.iter().any(|key| lower.contains(key)) {
+        return true;
+    }
+
+    if contains_dotted_number(&lower) {
+        return true;
+    }
+
+    let payload = diff_payload(&lower);
+    payload.starts_with("github ")
+        || payload.starts_with("git ")
+        || payload.starts_with("binary ")
+        || payload.contains("{:git")
+        || payload.contains("{git,")
+        || payload.contains("{ref,")
 }
