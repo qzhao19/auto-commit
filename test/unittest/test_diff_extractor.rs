@@ -1,7 +1,9 @@
 use std::path::{Path, PathBuf};
 
 use crate::core::git::diff::DiffExtractor;
-use crate::core::git::diff::{path_summary, split_sections, truncate_section};
+use crate::core::git::diff::{
+    is_lock_signal_line, path_summary, split_sections, summarize_lock_diff, truncate_section,
+};
 use crate::core::git::types::{
     BudgetDecision, ChangeType, ClassifiedSnapshot, DiffStrategy, FileCategory, StagedFile,
 };
@@ -242,6 +244,177 @@ fn path_summary_renders_semantic_files_only() {
         payload.body,
         "M  src/a.rs\nR  old.rs -> new.rs\nC  src.rs -> copy.rs\n"
     );
+}
+
+#[test]
+fn path_summary_includes_lock_files() {
+    let payload = path_summary(&snapshot(vec![
+        file(
+            "src/a.rs",
+            ChangeType::Modified,
+            None,
+            FileCategory::SemanticText,
+        ),
+        file(
+            "Cargo.lock",
+            ChangeType::Modified,
+            None,
+            FileCategory::DependencyLock,
+        ),
+        file("logo.png", ChangeType::Modified, None, FileCategory::Binary),
+    ]));
+
+    assert_eq!(payload.file_count, 2);
+    assert_eq!(payload.body, "M  src/a.rs\nM  Cargo.lock\n");
+}
+
+//  summarize_lock_diff
+
+#[test]
+fn summarize_lock_diff_keeps_name_version_pairs() {
+    let diff = concat!(
+        "diff --git a/Cargo.lock b/Cargo.lock\n",
+        "--- a/Cargo.lock\n",
+        "+++ b/Cargo.lock\n",
+        "@@ -1,4 +1,4 @@\n",
+        " name = \"anyhow\"\n",
+        "-version = \"1.0.80\"\n",
+        "+version = \"1.0.86\"\n",
+        " checksum = \"aaaa\"\n",
+    );
+
+    let out = summarize_lock_diff(diff, 64);
+
+    assert!(out.contains("diff --git a/Cargo.lock b/Cargo.lock\n"));
+    assert!(out.contains(" name = \"anyhow\"\n"));
+    assert!(out.contains("-version = \"1.0.80\"\n"));
+    assert!(out.contains("+version = \"1.0.86\"\n"));
+    assert!(!out.contains("checksum"));
+    assert!(!out.contains("@@"));
+}
+
+#[test]
+fn summarize_lock_diff_keeps_dotted_version_without_keyword() {
+    let diff = concat!(
+        "diff --git a/go.sum b/go.sum\n",
+        "--- a/go.sum\n",
+        "+++ b/go.sum\n",
+        "@@ -1 +1 @@\n",
+        "-github.com/foo/bar v1.2.3 h1:abc\n",
+        "+github.com/foo/bar v1.2.4 h1:def\n",
+    );
+
+    let out = summarize_lock_diff(diff, 64);
+
+    assert!(out.contains("-github.com/foo/bar v1.2.3 h1:abc\n"));
+    assert!(out.contains("+github.com/foo/bar v1.2.4 h1:def\n"));
+}
+
+#[test]
+fn summarize_lock_diff_caps_and_reports_remainder() {
+    let diff = concat!(
+        "diff --git a/Cargo.lock b/Cargo.lock\n",
+        "@@ -1,6 +1,6 @@\n",
+        "-version = \"1\"\n",
+        "+version = \"2\"\n",
+        "-version = \"3\"\n",
+        "+version = \"4\"\n",
+        "-version = \"5\"\n",
+        "+version = \"6\"\n",
+    );
+
+    let out = summarize_lock_diff(diff, 2);
+
+    assert!(out.contains("-version = \"1\"\n"));
+    assert!(out.contains("+version = \"2\"\n"));
+    assert!(!out.contains("version = \"3\""));
+    assert!(out.contains("... [4 more dependency lines truncated]\n"));
+}
+
+#[tokio::test]
+async fn lock_only_commit_produces_digest_in_body() {
+    let dir = TempDir::new("extractor_lock_only").unwrap();
+    let runner = init_repo(dir.path()).await;
+
+    std::fs::write(
+        dir.path().join("Cargo.lock"),
+        "[[package]]\nname = \"anyhow\"\nversion = \"1.0.80\"\n",
+    )
+    .unwrap();
+    git(&runner, &["add", "Cargo.lock"]).await;
+    git(
+        &runner,
+        &["-c", "commit.gpgsign=false", "commit", "-m", "init"],
+    )
+    .await;
+    std::fs::write(
+        dir.path().join("Cargo.lock"),
+        "[[package]]\nname = \"anyhow\"\nversion = \"1.0.86\"\n",
+    )
+    .unwrap();
+    git(&runner, &["add", "Cargo.lock"]).await;
+
+    let extractor = DiffExtractor::new(&runner);
+    let payload = extractor
+        .extract(
+            &snapshot(vec![file(
+                "Cargo.lock",
+                ChangeType::Modified,
+                None,
+                FileCategory::DependencyLock,
+            )]),
+            &decision(DiffStrategy::Full),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(payload.file_count, 1);
+    assert_eq!(payload.truncated_file_count, 0);
+    assert!(payload.body.contains("diff --git"));
+    assert!(payload.body.contains("1.0.80"));
+    assert!(payload.body.contains("1.0.86"));
+    assert!(!payload.body.contains("[[package]]"));
+}
+
+#[test]
+fn lock_signal_covers_registry_pin_lines() {
+    let hits = [
+        r#"+  "version": "1.2.3","#,
+        r#"+name = "serde""#,
+        r#"+version = "5.0.0""#,
+        "+github.com/foo/bar v1.2.3 h1:abc",
+        "+    rails (7.0.4)",
+        r#"+        "rev": "a1b2c3d4e5f6789012345678901234567890abcd","#,
+        r#"+        "ref": "nixos-unstable","#,
+        r#"+          "revision" : "abc123","#,
+        r#"+      "identity" : "alamofire","#,
+        "+    specifier: 4.17.21",
+        r#"+github "Alamofire/Alamofire" "4b1af0318ce26f2a42385b50e0349d6d112ea92c""#,
+        r#"+  "foo": {:git, "https://github.com/x/foo.git", "abcdef", []},"#,
+        r#"+{<<"foo">>, {git, "https://example.com/foo.git", {ref, "abcdef"}}}"#,
+        r#"+        "rrev": "abc123","#,
+        r#"+      "RemoteSha": "abcdef123","#,
+        r#"+  "phoenix": {:hex, :phoenix, "1.7.0", "deadbeef","#,
+    ];
+    for line in hits {
+        assert!(is_lock_signal_line(line), "expected hit: {line}");
+    }
+}
+
+#[test]
+fn lock_signal_rejects_checksum_noise_and_short_rev_substring() {
+    let misses = [
+        r#"+checksum = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa""#,
+        r#"+  integrity "sha512-aaaa""#,
+        r#"+      "narHash": "sha256-xxxx=""#,
+        r#"+            "contentHash": "bbbb""#,
+        r#"+# DO NOT EDIT - copy to .env.local"#,
+        r#"+    "revalidate": true,"#,
+        r#"+    "preview": false,"#,
+    ];
+    for line in misses {
+        assert!(!is_lock_signal_line(line), "expected miss: {line}");
+    }
 }
 
 //  extract
