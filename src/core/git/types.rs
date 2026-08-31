@@ -1,7 +1,5 @@
 use std::path::{Path, PathBuf};
 
-use toml::de;
-
 // ---- Repository Preflight ----
 
 /// Paths inside the Git directory that are used by later stages.
