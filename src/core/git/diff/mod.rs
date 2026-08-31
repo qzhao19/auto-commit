@@ -14,4 +14,6 @@ pub(crate) use rules::{
 };
 
 #[cfg(test)]
-pub(crate) use extractor::{path_summary, split_sections, truncate_section};
+pub(crate) use extractor::{
+    is_lock_signal_line, path_summary, split_sections, summarize_lock_diff, truncate_section,
+};
