@@ -65,19 +65,20 @@ impl<'a> RepoPreflightCollector<'a> {
         // 0.6 Resolve branch
         let branch = self.resolve_branch().await?;
 
-        // 0.7 Detect staged changes
-        let has_staged_changes = self.has_staged_changes().await?;
-
-        if !has_staged_changes {
-            self.handle_empty_staging().await?;
-        }
-
         Ok(RepositoryContext {
             worktree_root,
             git_paths,
             head_oid,
             branch,
         })
+    }
+
+    /// 0.7 Detect staged changes, entry condition of stage ops checks
+    pub async fn ensure_staged_changes(&self) -> Result<(), GitError> {
+        if self.has_staged_changes().await? {
+            return Ok(());
+        }
+        self.handle_empty_staging().await
     }
 
     ///  0.1 Discover repository
