@@ -2,34 +2,20 @@ use crate::core::git::types::{
     BudgetDecision, ClassifiedSnapshot, DiffPayload, Operation, RepositoryContext,
 };
 
-#[derive(Debug, Clone, Copy)]
-pub enum PromptSource<'a> {
-    Seed {
+#[derive(Debug, Clone)]
+pub enum PipeInput {
+    /// merge / rebase / squash / cherry-pick / revert
+    FromOperation {
+        repo: RepositoryContext,
         operation: Operation,
-        message: Option<&'a str>,
+        message: Option<String>,
+        commit_oid: Option<String>,
     },
-    Staged {
-        snapshot: &'a ClassifiedSnapshot,
-        payload: &'a DiffPayload,
+    /// Regular branch after stages 2–3
+    FromStaging {
+        repo: RepositoryContext,
+        snapshot: ClassifiedSnapshot,
+        payload: DiffPayload,
+        decision: BudgetDecision,
     },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PromptTemplate {
-    Regular,
-    SeedReuse,
-    SeedTemplate,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AssembledPrompt {
-    pub template: PromptTemplate,
-    pub prompt: String,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct AssemblerInput<'a> {
-    pub repo: &'a RepositoryContext,
-    pub source: PromptSource<'a>,
-    pub decision: Option<&'a BudgetDecision>,
 }
