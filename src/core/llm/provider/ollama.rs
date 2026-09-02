@@ -7,7 +7,7 @@ use ollama_rs::generation::chat::ChatMessage;
 use ollama_rs::generation::chat::request::ChatMessageRequest;
 use ollama_rs::models::ModelOptions;
 
-use crate::shared::config::{LlmConfig, LlmGenerationConfig};
+use crate::shared::config::{LlmConfig, LlmGenerationConfig, LlmMessage};
 use crate::shared::exception::{LlmError, ProviderErrorType};
 
 use super::super::Provider;
@@ -55,14 +55,17 @@ impl OllamaProvider {
 impl Provider for OllamaProvider {
     fn invoke_raw<'a>(
         &'a self,
-        prompt: &'a str,
+        message: LlmMessage<'a>,
     ) -> Pin<Box<dyn Future<Output = Result<String, LlmError>> + Send + 'a>> {
         Box::pin(async move {
-            let request = ChatMessageRequest::new(
-                self.model.clone(),
-                vec![ChatMessage::user(prompt.to_string())],
-            )
-            .options(self.generation_options());
+            let mut messages = Vec::with_capacity(2);
+            if let Some(system_message) = message.system_message {
+                messages.push(ChatMessage::system(system_message.to_string()));
+            }
+            messages.push(ChatMessage::user(message.user_message.to_string()));
+
+            let request = ChatMessageRequest::new(self.model.clone(), messages)
+                .options(self.generation_options());
 
             let response = self
                 .client
