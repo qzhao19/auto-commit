@@ -181,6 +181,13 @@ impl OperationState {
             Self::Revert { subject, .. } => subject.as_ref().map(|s| format!("Revert \"{s}\"")),
         }
     }
+
+    pub fn source_commit_oid(&self) -> Option<String> {
+        match self {
+            Self::CherryPick { head, .. } | Self::Revert { head, .. } => Some(head.clone()),
+            _ => None,
+        }
+    }
 }
 
 // ---- Staged Metadata ----
