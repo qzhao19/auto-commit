@@ -6,7 +6,7 @@ use crate::core::git::types::{BudgetPolicy, OperationAction, OperationState, Rep
 use crate::infra::git::GitRunner;
 use crate::shared::exception::{GitError, GitErrorCode};
 
-use super::context::PipeInput;
+use super::context::AssemblyContext;
 
 pub struct PipeOrchestrator<'a> {
     runner: &'a GitRunner,
@@ -18,9 +18,8 @@ impl<'a> PipeOrchestrator<'a> {
         Self { runner, policy }
     }
 
-    pub async fn run(&self) -> Result<PipeInput, GitError> {
+    pub async fn run(&self) -> Result<AssemblyContext, GitError> {
         // Stage 0: preflight
-        // let repo = RepoPreflightCollector::new(self.runner).run().await?;
         let preflight = RepoPreflightCollector::new(self.runner);
         let repo = preflight.run().await?;
 
@@ -33,11 +32,11 @@ impl<'a> PipeOrchestrator<'a> {
                 let operation = state
                     .kind()
                     .expect("reuse/template state always carries Operation");
-                Ok(PipeInput::FromOperation {
+                Ok(AssemblyContext::FromOperation {
                     repo,
                     operation,
                     message: state.seed_message(),
-                    commit_oid: resolve_commit_oid(&state),
+                    commit_oid: state.source_commit_oid(),
                 })
             }
             OperationAction::Continue => {
@@ -47,7 +46,10 @@ impl<'a> PipeOrchestrator<'a> {
         }
     }
 
-    async fn collect_staged_diff(&self, repo: RepositoryContext) -> Result<PipeInput, GitError> {
+    async fn collect_staged_diff(
+        &self,
+        repo: RepositoryContext,
+    ) -> Result<AssemblyContext, GitError> {
         // Stage 2: Satged metadata
         let metadata = StagedMetadataCollector::new(self.runner).collect().await?;
 
@@ -62,21 +64,12 @@ impl<'a> PipeOrchestrator<'a> {
             .extract(&snapshot, &decision)
             .await?;
 
-        Ok(PipeInput::FromStaging {
+        Ok(AssemblyContext::FromStaging {
             repo,
             snapshot,
             payload,
             decision,
         })
-    }
-}
-
-fn resolve_commit_oid(state: &OperationState) -> Option<String> {
-    match state {
-        OperationState::CherryPick { head, .. } | OperationState::Revert { head, .. } => {
-            Some(head.clone())
-        }
-        _ => None,
     }
 }
 
