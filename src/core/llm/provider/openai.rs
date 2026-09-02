@@ -5,10 +5,11 @@ use async_openai::Client;
 use async_openai::config::OpenAIConfig;
 use async_openai::error::OpenAIError;
 use async_openai::types::chat::{
-    ChatCompletionRequestUserMessageArgs, CreateChatCompletionRequestArgs,
+    ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs,
+    CreateChatCompletionRequestArgs,
 };
 
-use crate::shared::config::{LlmConfig, LlmGenerationConfig};
+use crate::shared::config::{LlmConfig, LlmGenerationConfig, LlmMessage};
 use crate::shared::exception::{LlmError, ProviderErrorType};
 
 use super::super::Provider;
@@ -47,7 +48,7 @@ impl OpenAiProvider {
 impl Provider for OpenAiProvider {
     fn invoke_raw<'a>(
         &'a self,
-        prompt: &'a str,
+        message: LlmMessage<'a>,
     ) -> Pin<Box<dyn Future<Output = Result<String, LlmError>> + Send + 'a>> {
         Box::pin(async move {
             let max_tokens = u32::try_from(self.generation.max_tokens).map_err(|_| {
@@ -58,14 +59,23 @@ impl Provider for OpenAiProvider {
             })?;
 
             // Create user message
-            let user_msg = ChatCompletionRequestUserMessageArgs::default()
-                .content(prompt)
+            let mut messages = Vec::with_capacity(2);
+            if let Some(system_message) = message.system_message {
+                let system_message = ChatCompletionRequestSystemMessageArgs::default()
+                    .content(system_message)
+                    .build()
+                    .map_err(openai_err)?;
+                messages.push(system_message.into());
+            }
+            let user_message = ChatCompletionRequestUserMessageArgs::default()
+                .content(message.user_message)
                 .build()
                 .map_err(openai_err)?;
+            messages.push(user_message.into());
 
             let request = CreateChatCompletionRequestArgs::default()
                 .model(self.model.as_str())
-                .messages(vec![user_msg.into()])
+                .messages(messages)
                 .temperature(self.generation.temperature)
                 .top_p(self.generation.top_p)
                 .max_tokens(max_tokens)
