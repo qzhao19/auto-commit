@@ -3,7 +3,7 @@ use crate::core::git::types::{
 };
 
 #[derive(Debug, Clone)]
-pub enum PipeInput {
+pub enum AssemblyContext {
     /// merge / rebase / squash / cherry-pick / revert
     FromOperation {
         repo: RepositoryContext,
