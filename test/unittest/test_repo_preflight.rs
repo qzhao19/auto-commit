@@ -128,11 +128,16 @@ async fn clean_worktree_reports_nothing_to_commit() {
     git(&runner, &["add", "a.txt"]).await;
     commit(&runner, "init").await;
 
-    let err = RepoPreflightCollector::new(&runner)
+    let preflight = RepoPreflightCollector::new(&runner);
+
+    // Design pin: 0.7 moved out of run() — a clean worktree no longer
+    // blocks preflight; the dedicated operation branch depends on this.
+    preflight
         .run()
         .await
-        .unwrap_err();
+        .unwrap_or_else(|e| panic!("run() must succeed on a clean worktree, got: {e}"));
 
+    let err = preflight.ensure_staged_changes().await.unwrap_err();
     assert_eq!(err.code, GitErrorCode::NothingStaged, "got: {err}");
     assert!(err.message.contains("nothing to commit"), "got: {err}");
 }
@@ -148,7 +153,7 @@ async fn unstaged_modification_prompts_git_add() {
     std::fs::write(dir.path().join("a.txt"), b"two").unwrap();
 
     let err = RepoPreflightCollector::new(&runner)
-        .run()
+        .ensure_staged_changes()
         .await
         .unwrap_err();
 
@@ -171,7 +176,7 @@ async fn untracked_file_prompts_git_add() {
     std::fs::write(dir.path().join("new.txt"), b"fresh").unwrap();
 
     let err = RepoPreflightCollector::new(&runner)
-        .run()
+        .ensure_staged_changes()
         .await
         .unwrap_err();
 
