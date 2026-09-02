@@ -130,6 +130,28 @@ pub struct LlmConfig {
     pub generation: LlmGenerationConfig,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct LlmMessage<'a> {
+    pub system_message: Option<&'a str>,
+    pub user_message: &'a str,
+}
+
+impl<'a> LlmMessage<'a> {
+    pub fn new(system_message: Option<&'a str>, user_message: &'a str) -> Self {
+        Self {
+            system_message,
+            user_message,
+        }
+    }
+
+    pub fn user_message_only(user_message: &'a str) -> Self {
+        Self {
+            system_message: None,
+            user_message,
+        }
+    }
+}
+
 // --- Partial input intermediate state ---
 
 #[derive(Debug, Clone, Default, Deserialize)]
