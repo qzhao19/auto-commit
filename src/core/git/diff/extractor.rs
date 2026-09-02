@@ -356,19 +356,22 @@ pub fn path_summary(snapshot: &ClassifiedSnapshot) -> DiffPayload {
 // Helper function
 
 fn collect_paths_by_category(snapshot: &ClassifiedSnapshot, categiry: FileCategory) -> Vec<&str> {
-    snapshot
-        .files
-        .iter()
-        .filter(|file| file.category == categiry)
-        .filter_map(|file| {
-            let path = file.path.to_str()?;
-            if path.is_empty() || path.contains('\n') {
-                None
-            } else {
-                Some(path)
+    let mut paths = Vec::new();
+
+    for file in snapshot.files.iter().filter(|f| f.category == categiry) {
+        // Rename/copy detection needs BOTH sides of the pair pathspec
+        for path in [file.old_path.as_deref(), Some(file.path.as_path())]
+            .into_iter()
+            .flatten()
+        {
+            if let Some(path) = path.to_str() {
+                if !path.is_empty() && !path.contains('\n') && !paths.contains(&path) {
+                    paths.push(path);
+                }
             }
-        })
-        .collect()
+        }
+    }
+    paths
 }
 
 fn is_changed_line(line: &str) -> bool {
