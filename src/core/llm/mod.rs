@@ -4,7 +4,7 @@ pub mod provider;
 use std::future::Future;
 use std::pin::Pin;
 
-use crate::shared::config::{LlmConfig, ProviderName};
+use crate::shared::config::{LlmConfig, LlmMessage, ProviderName};
 use crate::shared::exception::LlmError;
 
 use provider::ollama::OllamaProvider;
@@ -19,7 +19,7 @@ pub trait Provider: Send + Sync {
     /// bound: the future cannot outlive either.
     fn invoke_raw<'a>(
         &'a self,
-        prompt: &'a str,
+        message: LlmMessage<'a>,
     ) -> Pin<Box<dyn Future<Output = Result<String, LlmError>> + Send + 'a>>;
 
     fn name(&self) -> &'static str;
