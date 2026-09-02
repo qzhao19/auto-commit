@@ -1,6 +1,6 @@
 use crate::infra::retry::{Retry, RetryResult};
 use crate::infra::timeout::Timeout;
-use crate::shared::config::AppConfig;
+use crate::shared::config::{AppConfig, LlmMessage};
 use crate::shared::exception::LlmError;
 
 use super::{Provider, build_provider};
@@ -29,11 +29,11 @@ impl LlmClient {
     }
 
     /// Generate a commit message, apply retries + single attempt timeout
-    pub async fn invoke(&self, prompt: &str) -> Result<String, LlmError> {
+    pub async fn invoke(&self, message: LlmMessage<'_>) -> Result<String, LlmError> {
         let result = self
             .retry
             .execute(LlmError::is_retryable, || async {
-                self.invoke_once(prompt).await
+                self.invoke_once(message).await
             })
             .await;
 
@@ -48,9 +48,9 @@ impl LlmClient {
     }
 
     /// Single attempt: wrap provider future with timeout protect
-    async fn invoke_once(&self, prompt: &str) -> Result<String, LlmError> {
+    async fn invoke_once(&self, message: LlmMessage<'_>) -> Result<String, LlmError> {
         self.timeout
-            .execute(self.provider.invoke_raw(prompt))
+            .execute(self.provider.invoke_raw(message))
             .await
             .map_err(LlmError::Timeout)?
     }
