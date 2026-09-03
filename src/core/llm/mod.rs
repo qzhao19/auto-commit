@@ -19,7 +19,7 @@ pub trait Provider: Send + Sync {
     /// bound: the future cannot outlive either.
     fn invoke_raw<'a>(
         &'a self,
-        message: LlmMessage<'a>,
+        message: &'a LlmMessage,
     ) -> Pin<Box<dyn Future<Output = Result<String, LlmError>> + Send + 'a>>;
 
     fn name(&self) -> &'static str;
