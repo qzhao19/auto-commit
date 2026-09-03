@@ -130,21 +130,21 @@ pub struct LlmConfig {
     pub generation: LlmGenerationConfig,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct LlmMessage<'a> {
-    pub system_message: Option<&'a str>,
-    pub user_message: &'a str,
+#[derive(Debug, Clone)]
+pub struct LlmMessage {
+    pub system_message: Option<String>,
+    pub user_message: String,
 }
 
-impl<'a> LlmMessage<'a> {
-    pub fn new(system_message: Option<&'a str>, user_message: &'a str) -> Self {
+impl LlmMessage {
+    pub fn new(system_message: Option<String>, user_message: String) -> Self {
         Self {
             system_message,
             user_message,
         }
     }
 
-    pub fn user_message_only(user_message: &'a str) -> Self {
+    pub fn user_message_only(user_message: String) -> Self {
         Self {
             system_message: None,
             user_message,
