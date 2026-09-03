@@ -55,14 +55,14 @@ impl OllamaProvider {
 impl Provider for OllamaProvider {
     fn invoke_raw<'a>(
         &'a self,
-        message: LlmMessage<'a>,
+        message: &'a LlmMessage,
     ) -> Pin<Box<dyn Future<Output = Result<String, LlmError>> + Send + 'a>> {
         Box::pin(async move {
             let mut messages = Vec::with_capacity(2);
-            if let Some(system_message) = message.system_message {
-                messages.push(ChatMessage::system(system_message.to_string()));
+            if let Some(system_message) = &message.system_message {
+                messages.push(ChatMessage::system(system_message.clone()));
             }
-            messages.push(ChatMessage::user(message.user_message.to_string()));
+            messages.push(ChatMessage::user(message.user_message.clone()));
 
             let request = ChatMessageRequest::new(self.model.clone(), messages)
                 .options(self.generation_options());
