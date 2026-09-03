@@ -48,7 +48,7 @@ impl OpenAiProvider {
 impl Provider for OpenAiProvider {
     fn invoke_raw<'a>(
         &'a self,
-        message: LlmMessage<'a>,
+        message: &'a LlmMessage,
     ) -> Pin<Box<dyn Future<Output = Result<String, LlmError>> + Send + 'a>> {
         Box::pin(async move {
             let max_tokens = u32::try_from(self.generation.max_tokens).map_err(|_| {
@@ -60,15 +60,15 @@ impl Provider for OpenAiProvider {
 
             // Create user message
             let mut messages = Vec::with_capacity(2);
-            if let Some(system_message) = message.system_message {
+            if let Some(system) = &message.system_message {
                 let system_message = ChatCompletionRequestSystemMessageArgs::default()
-                    .content(system_message)
+                    .content(system.as_str())
                     .build()
                     .map_err(openai_err)?;
                 messages.push(system_message.into());
             }
             let user_message = ChatCompletionRequestUserMessageArgs::default()
-                .content(message.user_message)
+                .content(message.user_message.as_str())
                 .build()
                 .map_err(openai_err)?;
             messages.push(user_message.into());
