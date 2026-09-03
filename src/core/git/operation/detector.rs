@@ -55,7 +55,7 @@ impl<'a> OperationStateDetector<'a> {
             return Ok(Some(OperationState::Rebase { message }));
         }
 
-        // 1.3 Rebase
+        // 1.3 Merge HEAD
         if Self::path_exists(&paths.merge_head)? {
             let message = Self::read_msg_file(&paths.merge_msg)?;
             return Ok(Some(OperationState::Merge { message }));
