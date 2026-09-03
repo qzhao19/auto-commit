@@ -29,11 +29,11 @@ impl LlmClient {
     }
 
     /// Generate a commit message, apply retries + single attempt timeout
-    pub async fn invoke(&self, message: LlmMessage<'_>) -> Result<String, LlmError> {
+    pub async fn invoke(&self, message: LlmMessage) -> Result<String, LlmError> {
         let result = self
             .retry
             .execute(LlmError::is_retryable, || async {
-                self.invoke_once(message).await
+                self.invoke_once(&message).await
             })
             .await;
 
@@ -48,7 +48,7 @@ impl LlmClient {
     }
 
     /// Single attempt: wrap provider future with timeout protect
-    async fn invoke_once(&self, message: LlmMessage<'_>) -> Result<String, LlmError> {
+    async fn invoke_once(&self, message: &LlmMessage) -> Result<String, LlmError> {
         self.timeout
             .execute(self.provider.invoke_raw(message))
             .await
