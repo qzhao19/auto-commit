@@ -6,6 +6,7 @@ mod test_file_classifier;
 mod test_git_runner;
 mod test_operation_state;
 mod test_pipe_orchestrator;
+mod test_prompt_assembler;
 mod test_repo_preflight;
 mod test_retry;
 mod test_staged_metadata;
