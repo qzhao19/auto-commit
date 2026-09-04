@@ -27,10 +27,9 @@ impl<'a> FileClassifier<'a> {
         // Phase A: path / basename only
         for (index, file) in files.iter_mut().enumerate() {
             match file.category {
-                FileCategory::Submodule | FileCategory::Binary => {
-                    continue;
-                }
-                FileCategory::DependencyLock
+                FileCategory::Submodule
+                | FileCategory::Binary
+                | FileCategory::DependencyLock
                 | FileCategory::Generated
                 | FileCategory::SemanticText => continue,
                 FileCategory::Unknown => {
