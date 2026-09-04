@@ -3,11 +3,9 @@ use clap::Parser;
 use super::app::PartialAppConfig;
 use super::llm::{PartialLlmConfig, PartialLlmGenerationConfig, PartialLlmProviderConfig};
 use super::resilience::PartialResilienceConfig;
-// ── CLI args (generation only) ──
-//
+
 // By design only generation params are exposed here:
 // provider / apiKey / resilience must never appear on the command line
-
 #[derive(Parser, Debug, Clone, Default)]
 #[command(
     name = "auto-commit",
