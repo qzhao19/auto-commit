@@ -29,7 +29,7 @@ impl OpenAiProvider {
         let cfg = OpenAIConfig::new();
         let cfg = match &provider.api_key {
             Some(key) => cfg.with_api_key(key.as_str()),
-            None => cfg,
+            None => cfg.with_api_key(String::new()),
         };
 
         let cfg = match &provider.base_url {
