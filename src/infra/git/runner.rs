@@ -178,6 +178,39 @@ impl GitRunner {
         Ok(stdout_result?)
     }
 
+    pub async fn commit(
+        &self,
+        message: &str,
+        options: Option<&GitRunOptions>,
+    ) -> Result<GitCommandResult, GitError> {
+        let result = self.run_raw(&["commit", "-m", message], options).await?;
+
+        if result.exit_code != 0 {
+            let reason = if !result.stderr.is_empty() {
+                result.stderr_str()
+            } else if !result.stdout.is_empty() {
+                result.stdout_str()
+            } else {
+                std::borrow::Cow::Borrowed("")
+            }
+            .trim()
+            .to_owned();
+
+            let detail = if reason.is_empty() {
+                String::new()
+            } else {
+                format!("; {reason}")
+            };
+
+            return Err(GitError::new(
+                GitErrorCode::CommandFailed,
+                format!("`git commit` exited with code {}{detail}", result.exit_code),
+            ));
+        }
+
+        Ok(result)
+    }
+
     async fn run_raw(
         &self,
         args: &[&str],
