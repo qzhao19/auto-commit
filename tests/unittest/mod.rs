@@ -1,4 +1,5 @@
 mod test_budget_planner;
+mod test_candidate_pool;
 mod test_config_loader;
 mod test_diff_extractor;
 mod test_diff_rules;
