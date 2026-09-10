@@ -1,7 +1,5 @@
 use std::path::PathBuf;
 
-use tokio::io::Stdout;
-
 use crate::core::git::types::{GitPaths, RepositoryContext};
 use crate::infra::git::GitRunner;
 use crate::shared::config::GitRunOptions;
