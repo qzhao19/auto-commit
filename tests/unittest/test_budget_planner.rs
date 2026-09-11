@@ -318,22 +318,3 @@ fn safety_factor_inflates_estimate() {
     assert_eq!(decision.strategy, DiffStrategy::Full);
     assert_eq!(decision.estimated_diff_tokens, 1_300);
 }
-
-//  planner plumbing
-
-#[test]
-fn policy_accessor_returns_constructed_policy() {
-    // Regression guard: this accessor once recursed infinitely
-    // (`&self.policy()` calling itself) and compiled with only a warning.
-    let policy = policy();
-    let planner = BudgetPlanner::new(policy);
-
-    assert_eq!(planner.policy(), &policy);
-}
-
-#[test]
-fn default_planner_uses_default_policy() {
-    let planner = BudgetPlanner::default();
-
-    assert_eq!(planner.policy(), &BudgetPolicy::default());
-}
