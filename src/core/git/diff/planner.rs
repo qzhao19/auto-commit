@@ -13,10 +13,6 @@ impl BudgetPlanner {
         Self { policy }
     }
 
-    pub fn policy(&self) -> &BudgetPolicy {
-        &self.policy
-    }
-
     pub fn plan(&self, snapshot: &ClassifiedSnapshot) -> BudgetDecision {
         let stats = SemanticTextStats::from_snapshot(snapshot);
         let available = self.policy.available_for_diff();
@@ -66,8 +62,8 @@ impl BudgetPlanner {
         }
     }
 
-    ///limited = Σᵢ [ overhead + min(linesᵢ, cap) × tokens_per_changed_line ]   (content file) 
-    ///        + Σⱼ tokens_per_rename_only                                      (rename file) 
+    ///limited = Σᵢ [ overhead + min(linesᵢ, cap) × tokens_per_changed_line ]   (content file)
+    ///        + Σⱼ tokens_per_rename_only                                      (rename file)
     ///        × safety_factor_bps / 10_000
     fn estimate_with_line_capacity(policy: &BudgetPolicy, snapshot: &ClassifiedSnapshot) -> u64 {
         let capacity = policy.max_changed_lines_per_file;
