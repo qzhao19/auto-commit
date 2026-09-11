@@ -84,10 +84,6 @@ impl KeyListener {
         }
     }
 
-    pub fn stream(&mut self) -> &mut mpsc::UnboundedReceiver<UserKey> {
-        &mut self.rx
-    }
-
     pub fn into_parts(self) -> (StopGuard, mpsc::UnboundedReceiver<UserKey>) {
         (self._stop, self.rx)
     }
