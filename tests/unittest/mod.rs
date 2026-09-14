@@ -5,6 +5,7 @@ mod test_diff_extractor;
 mod test_diff_rules;
 mod test_file_classifier;
 mod test_git_runner;
+mod test_message_validator;
 mod test_operation_state;
 mod test_pipe_orchestrator;
 mod test_prompt_assembler;
