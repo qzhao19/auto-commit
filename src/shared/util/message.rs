@@ -1,9 +1,7 @@
 // Validate message
 
-use core::fmt;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedCommitMessage(String);
+pub struct ValidatedCommitMessage(pub(crate) String);
 
 impl ValidatedCommitMessage {
     #[inline]
@@ -23,7 +21,7 @@ impl AsRef<str> for ValidatedCommitMessage {
     }
 }
 
-impl fmt::Display for ValidatedCommitMessage {
+impl std::fmt::Display for ValidatedCommitMessage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.0)
     }
