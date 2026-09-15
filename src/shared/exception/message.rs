@@ -1,7 +1,7 @@
 use std::fmt;
 
 /// Header description budget
-pub const MAX_DESCRIPTION_CHARS: usize = 150;
+pub const MAX_DESCRIPTION_CHARS: usize = 72;
 
 pub const ALLOWED_TYPES: &[&str] = &[
     "feat", "fix", "docs", "style", "refactor", "perf", "test", "chore", "build", "ci",
