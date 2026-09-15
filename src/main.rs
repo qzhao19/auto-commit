@@ -10,10 +10,13 @@ use crate::core::llm::client::LlmClient;
 use crate::core::pipe::assembler::PromptAssembler;
 use crate::core::pipe::context::AssemblyContext;
 use crate::core::pipe::orchestrator::PipeOrchestrator;
+use crate::core::pipe::validator::validate_and_normalize;
 use crate::infra::config::ConfigLoader;
 use crate::infra::git::GitRunner;
 use crate::infra::terminal::{KeyListener, RawModeGuard, TerminalUi};
-use crate::shared::exception::{AppError, GitError, GitErrorCode, LlmError, ProviderErrorType};
+use crate::shared::exception::{
+    AppError, GitError, GitErrorCode, LlmError, ProviderErrorType, ValidationError,
+};
 
 #[cfg(test)]
 #[path = "../tests/unittest/mod.rs"]
@@ -35,6 +38,13 @@ async fn main() -> ExitCode {
 }
 
 async fn run() -> Result<(), AppError> {
+    let invalid_message = |err: ValidationError| -> LlmError {
+        LlmError::Provider(
+            ProviderErrorType::Fatal,
+            format!("invalid commit message: {err}"),
+        )
+    };
+
     // 1. Config: default < toml < env < CLI
     let config = ConfigLoader::load_from_defaults()
         .load()
@@ -61,14 +71,10 @@ async fn run() -> Result<(), AppError> {
 
     // 4. LLM build the client from config
     let client = LlmClient::new(&config).map_err(AppError::Llm)?;
-    let raw = client.invoke(prompt).await.map_err(AppError::Llm)?;
-    let message = raw.trim();
-    if message.is_empty() {
-        return Err(AppError::Llm(LlmError::Provider(
-            ProviderErrorType::Fatal,
-            "provider returned an empty commit message".to_string(),
-        )));
-    }
+    let raw = client.invoke(prompt.clone()).await.map_err(AppError::Llm)?;
+    let first_candidate = validate_and_normalize(&raw)
+        .map(|msg| msg.into_string())
+        .map_err(|err| AppError::Llm(invalid_message(err)))?;
 
     // 5. Interactive loop
     let repo = match &ctx {
@@ -78,17 +84,22 @@ async fn run() -> Result<(), AppError> {
                 .unwrap_or_else(|| repo.worktree_root.display().to_string())
         }
     };
-    let generate = || async {
-        let prompt = PromptAssembler::assemble(&ctx);
-        let raw = client.invoke(prompt).await?;
-        let candidate = raw.trim().to_owned();
-        if candidate.is_empty() {
-            return Err(LlmError::Provider(
-                ProviderErrorType::Fatal,
-                "provider returned an empty commit message".to_string(),
-            ));
+
+    let client_ref = &client;
+    let prompt_ref = &prompt;
+
+    let mut first_cache = Some(first_candidate);
+    let generate = || {
+        let cached = first_cache.take();
+        async move {
+            if let Some(cached) = cached {
+                return Ok(cached);
+            }
+            let raw = client_ref.invoke(prompt_ref.clone()).await?;
+            validate_and_normalize(&raw)
+                .map(|msg| msg.into_string())
+                .map_err(invalid_message)
         }
-        Ok(candidate)
     };
 
     let _raw = RawModeGuard::enter()
@@ -105,7 +116,7 @@ async fn run() -> Result<(), AppError> {
     drop(_raw);
 
     let Some(candidate) = decision else {
-        return Ok(()); // user exited without accepting — nothing to commit
+        return Ok(()); // nothing to commit
     };
 
     commit_staged_changes(&runner, &candidate).await
