@@ -76,6 +76,12 @@ async fn run() -> Result<(), AppError> {
         .map(|msg| msg.into_string())
         .map_err(|err| AppError::Llm(invalid_message(err)))?;
 
+    // 4.5 Headless automation entry (CI / scripts / e2e)
+    if std::env::var("AUTOCOMMIT_ASSUME_YES").ok().as_deref() == Some("1") {
+        println!("{first_candidate}");
+        return commit_staged_changes(&runner, &first_candidate).await;
+    }
+
     // 5. Interactive loop
     let repo = match &ctx {
         AssemblyContext::FromStaging { repo, .. } | AssemblyContext::FromOperation { repo, .. } => {
@@ -128,6 +134,6 @@ async fn commit_staged_changes(runner: &GitRunner, message: &str) -> Result<(), 
         .await
         .map_err(|err| AppError::Commit(err.to_string()))?;
 
-    print!("{}", result.stdout_str());
+    eprint!("{}", result.stdout_str());
     Ok(())
 }
