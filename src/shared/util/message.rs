@@ -4,6 +4,7 @@
 pub struct ValidatedCommitMessage(pub(crate) String);
 
 impl ValidatedCommitMessage {
+    #[allow(dead_code)]
     #[inline]
     pub fn as_str(&self) -> &str {
         &self.0
