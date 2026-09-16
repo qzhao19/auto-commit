@@ -90,7 +90,7 @@ async fn head_oid(runner: &GitRunner) -> String {
 //  1.8 clean
 
 #[tokio::test]
-async fn clean_repo_yields_Clean() {
+async fn clean_repo_yields_clean() {
     let dir = TempDir::new("ops_clean").unwrap();
     let runner = init_repo(dir.path()).await;
     std::fs::write(dir.path().join("a.txt"), b"one").unwrap();
@@ -108,7 +108,7 @@ async fn clean_repo_yields_Clean() {
 //  1.1 conflicts
 
 #[tokio::test]
-async fn merge_conflict_yields_Conflicts() {
+async fn merge_conflict_yields_conflicts() {
     let dir = TempDir::new("ops_merge_conflict").unwrap();
     let runner = init_repo(dir.path()).await;
     std::fs::write(dir.path().join("f.txt"), b"base").unwrap();
@@ -143,7 +143,7 @@ async fn merge_conflict_yields_Conflicts() {
 //  1.2 bisect
 
 #[tokio::test]
-async fn bisect_log_yields_Bisect() {
+async fn bisect_log_yields_bisect() {
     let dir = TempDir::new("ops_bisect").unwrap();
     let runner = init_repo(dir.path()).await;
     std::fs::write(dir.path().join("a.txt"), b"one").unwrap();
@@ -163,7 +163,7 @@ async fn bisect_log_yields_Bisect() {
 //  1.3 rebase
 
 #[tokio::test]
-async fn rebase_merge_dir_yields_Rebase_with_none_message() {
+async fn rebase_merge_dir_yields_rebase_with_none_message() {
     let dir = TempDir::new("ops_rebase_merge_dir").unwrap();
     let runner = init_repo(dir.path()).await;
     std::fs::write(dir.path().join("a.txt"), b"one").unwrap();
@@ -181,7 +181,7 @@ async fn rebase_merge_dir_yields_Rebase_with_none_message() {
 }
 
 #[tokio::test]
-async fn rebase_apply_dir_yields_Rebase_with_none_message() {
+async fn rebase_apply_dir_yields_rebase_with_none_message() {
     let dir = TempDir::new("ops_rebase_apply_dir").unwrap();
     let runner = init_repo(dir.path()).await;
     std::fs::write(dir.path().join("a.txt"), b"one").unwrap();
@@ -255,7 +255,7 @@ async fn rebase_seed_falls_back_to_rebase_head_subject() {
 //  1.6 merge
 
 #[tokio::test]
-async fn merge_head_yields_Merge_with_stripped_message() {
+async fn merge_head_yields_merge_with_stripped_message() {
     let dir = TempDir::new("ops_merge").unwrap();
     let runner = init_repo(dir.path()).await;
     std::fs::write(dir.path().join("a.txt"), b"one").unwrap();
@@ -310,7 +310,7 @@ async fn merge_msg_only_comments_yields_none_message() {
 //  1.7 squash
 
 #[tokio::test]
-async fn squash_msg_yields_Squash_with_message() {
+async fn squash_msg_yields_squash_with_message() {
     let dir = TempDir::new("ops_squash").unwrap();
     let runner = init_repo(dir.path()).await;
     std::fs::write(dir.path().join("a.txt"), b"one").unwrap();
@@ -340,7 +340,7 @@ async fn squash_msg_yields_Squash_with_message() {
 //  1.4 cherry-pick
 
 #[tokio::test]
-async fn cherry_pick_head_yields_CherryPick_with_subject() {
+async fn cherry_pick_head_yields_cherrypick_with_subject() {
     let dir = TempDir::new("ops_cherry_pick").unwrap();
     let runner = init_repo(dir.path()).await;
     std::fs::write(dir.path().join("a.txt"), b"one").unwrap();
@@ -385,7 +385,7 @@ async fn cherry_pick_empty_marker_errors() {
 //  1.5 revert
 
 #[tokio::test]
-async fn revert_head_yields_Revert_with_subject() {
+async fn revert_head_yields_revert_with_subject() {
     let dir = TempDir::new("ops_revert").unwrap();
     let runner = init_repo(dir.path()).await;
     std::fs::write(dir.path().join("a.txt"), b"one").unwrap();
@@ -412,7 +412,7 @@ async fn revert_head_yields_Revert_with_subject() {
 //  precedence pins
 
 #[tokio::test]
-async fn conflicted_rebase_yields_Conflicts_not_Rebase() {
+async fn conflicted_rebase_yields_conflicts_not_rebase() {
     // Design pin: a conflicted rebase leaves both unmerged entries AND
     // rebase-merge/ behind. Conflicts must be detected first, otherwise
     // the state is misclassified as Rebase and the abort is lost.
@@ -449,7 +449,7 @@ async fn conflicted_rebase_yields_Conflicts_not_Rebase() {
 }
 
 #[tokio::test]
-async fn conflicted_merge_yields_Conflicts_not_Merge() {
+async fn conflicted_merge_yields_conflicts_not_merge() {
     // Design pin: a conflicted merge leaves both unmerged entries AND
     // MERGE_HEAD. Conflicts must be detected first, otherwise the state
     // is misclassified as Merge.
@@ -512,7 +512,7 @@ async fn merge_takes_precedence_over_squash() {
 }
 
 #[tokio::test]
-async fn rebase_conflict_yields_Conflicts_during_rebase() {
+async fn rebase_conflict_yields_conflicts_during_rebase() {
     let dir = TempDir::new("ops_rebase_conflict").unwrap();
     let runner = init_repo(dir.path()).await;
     std::fs::write(dir.path().join("f.txt"), b"base").unwrap();
