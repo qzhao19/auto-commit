@@ -20,8 +20,6 @@ pub enum ValidationError {
     TrailingPeriod,
     BadHeaderBodySeparator,
     ForbiddenExtraContent,
-    TooVague,
-    SensitiveContent,
 }
 
 impl fmt::Display for ValidationError {
@@ -64,13 +62,6 @@ impl fmt::Display for ValidationError {
                 f,
                 "contains markdown / prefix / trailing noise that cannot be stripped safely"
             ),
-            Self::TooVague => write!(f, "message is too vague / generic"),
-            Self::SensitiveContent => {
-                write!(
-                    f,
-                    "potential sensitive information detected (key / token / password)"
-                )
-            }
         }
     }
 }
