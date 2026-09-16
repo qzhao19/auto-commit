@@ -137,6 +137,7 @@ pub struct LlmMessage {
 }
 
 impl LlmMessage {
+    #[allow(dead_code)]
     pub fn new(system_message: Option<String>, user_message: String) -> Self {
         Self {
             system_message,
@@ -144,6 +145,7 @@ impl LlmMessage {
         }
     }
 
+    #[allow(dead_code)]
     pub fn user_message_only(user_message: String) -> Self {
         Self {
             system_message: None,

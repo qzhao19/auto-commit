@@ -22,6 +22,7 @@ pub trait Provider: Send + Sync {
         message: &'a LlmMessage,
     ) -> Pin<Box<dyn Future<Output = Result<String, LlmError>> + Send + 'a>>;
 
+    #[allow(dead_code)]
     fn name(&self) -> &'static str;
 }
 

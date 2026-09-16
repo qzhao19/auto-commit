@@ -71,14 +71,17 @@ impl CandidatePool {
             .map(|msg| (msg.as_str(), self.cursor + 1, self.messages.len()))
     }
 
+    #[allow(dead_code)]
     pub fn len(&self) -> usize {
         self.messages.len()
     }
 
+    #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         self.messages.is_empty()
     }
 
+    #[allow(dead_code)]
     pub fn capacity(&self) -> usize {
         self.capacity
     }
