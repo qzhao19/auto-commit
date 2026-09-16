@@ -1,0 +1,102 @@
+# ─────────────────────────────────────────────────────────
+# auto-commit example configuration
+#
+# Deployed location (the ONLY path this tool reads):
+#   - $XDG_CONFIG_HOME/autocommit/config.toml  (if XDG_CONFIG_HOME is an absolute path)
+#   - $HOME/.config/autocommit/config.toml     (otherwise)
+# A missing file is legal — defaults apply.
+#
+# Precedence (lowest → highest):
+#   built-in defaults < this file < AUTOCOMMIT_* env vars < CLI flags
+# Invalid TOML syntax or out-of-range values abort with a configuration error.
+# ─────────────────────────────────────────────────────────
+
+# ─────────────────────────────────────────────────────────
+# LLM Provider Configuration
+# ─────────────────────────────────────────────────────────
+[llm]
+# Backend provider. Accepted values: "openai" | "ollama"
+#   - openai: any OpenAI-compatible Chat Completions API
+#     (requires an API key — see warning below)
+#   - ollama: a local Ollama instance (no API key needed)
+# Env override: AUTOCOMMIT_LLM_PROVIDER
+provider = "openai"
+
+# Model identifier sent to the provider. (required)
+# Examples: gpt-4o-mini, deepseek-v4-flash
+# Env override: AUTOCOMMIT_LLM_MODEL
+model = "deepseek-v4-flash"
+
+# Optional: custom API base URL. Omit to use the provider default endpoint.
+#   - openai: the client appends "/chat/completions" to this base,
+#     e.g. https://api.deepseek.com or https://api.deepseek.com/v1
+#   - ollama: plain origin only, NO "/v1" suffix
+#     (the client targets the native /api/chat endpoint, e.g. http://localhost:11434)
+# Env override: AUTOCOMMIT_LLM_BASE_URL
+baseUrl = "https://api.deepseek.com"
+
+# API key. Required when provider = "openai"; leave unset for "ollama".
+# WARNING: do not put real credentials in this file — if `apiKey` is found
+# here the tool logs a warning on every run. Prefer the env var instead:
+#   AUTOCOMMIT_LLM_API_KEY
+# apiKey = "..."
+
+# ─────────────────────────────────────────────────────────
+# Generation parameters (optional; each has a default)
+# Note: these are NOT readable from AUTOCOMMIT_* env vars by design;
+# only CLI flags (--temperature, --max-tokens, ...) override them.
+# ─────────────────────────────────────────────────────────
+
+# Sampling temperature: 0 ≈ deterministic, higher = more varied output.
+# Range [0.0, 2.0]. Default 0.8
+temperature = 0.8
+
+# Hard cap on the number of generated tokens. Must be > 0. Default 4096
+maxTokens = 4096
+
+# Nucleus sampling: only sample from tokens within the top-p probability
+# mass. Range (0.0, 1.0]. Default 0.9
+topP = 0.9
+
+# Penalizes tokens in proportion to how often they already appeared
+# (suppresses repetition). Range [0.0, 2.0]. Default 0
+frequencyPenalty = 0
+
+# Penalizes any token that has appeared at least once, regardless of
+# frequency (encourages topic diversity). Range [0.0, 2.0]. Default 0
+presencePenalty = 0
+
+# ─────────────────────────────────────────────────────────
+# Resilience Strategies
+# ─────────────────────────────────────────────────────────
+
+[resilience.retry]
+# Retry attempts AFTER the first failure (total attempts = maxRetries + 1).
+# Only transient failures consume retries: network errors, HTTP 429/5xx,
+# and per-attempt timeouts. Deterministic failures (401/404, malformed
+# response, ...) fail immediately.
+# Upper bound 10. Default 2. Env override: AUTOCOMMIT_RETRY_MAX_RETRIES
+maxRetries = 3
+
+# Base delay (ms) before the first retry. Must be > 0. Default 500.
+# Env override: AUTOCOMMIT_RETRY_INITIAL_DELAY_MS
+initialDelayMs = 1000
+
+# Upper clamp (ms) for any single backoff delay. Must be >= initialDelayMs.
+# Default 8000. Env override: AUTOCOMMIT_RETRY_MAX_DELAY_MS
+maxDelayMs = 10000
+
+# Exponential backoff growth rate: delay = initialDelayMs * factor^attempt
+# (attempt counts from 0, so the first retry waits initialDelayMs).
+# Must be >= 1.0. Default 2.0. Env override: AUTOCOMMIT_RETRY_FACTOR
+factor = 2
+
+# Randomize each delay by ±20% so concurrent runs do not retry in sync.
+# Default true. Env override: AUTOCOMMIT_RETRY_JITTER (true/false/1/0)
+jitter = true
+
+[resilience.timeout]
+# Per-attempt timeout in milliseconds — every retry attempt gets a fresh
+# budget (not shared across retries). Must be > 0. Default 60000.
+# Env override: AUTOCOMMIT_TIMEOUT_MS
+timeoutMs = 30000
