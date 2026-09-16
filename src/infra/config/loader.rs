@@ -28,6 +28,7 @@ impl ConfigLoader {
     }
 
     /// Test constructor
+    #[allow(dead_code)]
     pub fn new(
         file_path: Option<PathBuf>,
         env_vars: Vec<(String, String)>,
