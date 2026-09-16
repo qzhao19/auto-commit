@@ -11,21 +11,58 @@ const TITLE: &str = "Auto Commit Message Generation";
 
 pub struct TerminalUi {
     repo: String,
+    drawn_rows: usize,
 }
 
 impl TerminalUi {
     pub fn new(repo: impl Into<String>) -> Self {
-        Self { repo: repo.into() }
+        Self {
+            repo: repo.into(),
+            drawn_rows: 0,
+        }
     }
 
     fn header(&self) -> String {
         format!("{TITLE}\r\nRepository: {}\r\n", self.repo)
     }
+
+    /// Erase the previously drawn block
+    fn draw(&mut self, text: &str) {
+        let mut out = io::stdout();
+
+        // Query before erasing
+        let width = match terminal::size() {
+            Ok((columns, _)) => (columns as usize).max(1),
+            Err(_) => {
+                self.drawn_rows = 0;
+                let _ = write!(out, "{text}");
+                let _ = out.flush();
+                return;
+            }
+        };
+
+        for _ in 0..self.drawn_rows {
+            let _ = execute!(
+                out,
+                cursor::MoveUp(1),
+                terminal::Clear(terminal::ClearType::CurrentLine)
+            );
+        }
+
+        self.drawn_rows = text
+            .strip_suffix("\r\n")
+            .unwrap_or(text)
+            .split("\r\n")
+            .map(|line| line.chars().count().div_ceil(width).max(1))
+            .sum();
+        let _ = write!(out, "{text}");
+        let _ = out.flush();
+    }
 }
 
 impl Ui for TerminalUi {
     fn show_generating(&mut self) {
-        render(&format!("{}\r\nGenerating message...\r\n", self.header()));
+        self.draw(&format!("{}\r\nGenerating message...\r\n", self.header()));
     }
 
     fn show_message(&mut self, view: CandidateView<'_>) {
@@ -58,22 +95,9 @@ impl Ui for TerminalUi {
         options.push("    Other keys - Exit".to_string());
         let options = options.join("\r\n");
 
-        render(&format!(
+        self.draw(&format!(
             "\r\nGenerated Commit Message (Version {}/{}):\r\n{}\r\n\r\n{}\r\n",
             view.position, view.total, indented, options
         ))
     }
-}
-
-// Helper function
-
-fn render(text: &str) {
-    let mut out = io::stdout();
-    let _ = execute!(
-        out,
-        terminal::Clear(terminal::ClearType::All),
-        cursor::MoveTo(0, 0)
-    );
-    let _ = write!(out, "{text}");
-    let _ = out.flush();
 }
