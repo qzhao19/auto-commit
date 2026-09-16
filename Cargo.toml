@@ -6,7 +6,8 @@ edition = "2024"
 [profile.release]
 strip = true
 lto = true
-
+opt-level = "z"
+panic = "abort"
 
 [dependencies]
 async-openai = { version = "0.41.1", features = ["chat-completion"] }
