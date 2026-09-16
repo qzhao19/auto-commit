@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 /// Paths inside the Git directory that are used by later stages.
 #[derive(Debug, Clone)]
 pub struct GitPaths {
+    #[allow(dead_code)]
     pub git_dir: PathBuf,
 
     // Repository state
@@ -73,6 +74,7 @@ pub struct RepositoryContext {
 }
 
 impl RepositoryContext {
+    #[allow(dead_code)]
     pub fn git_dir(&self) -> &Path {
         &self.git_paths.git_dir
     }
@@ -81,6 +83,7 @@ impl RepositoryContext {
         self.head_oid.is_none()
     }
 
+    #[allow(dead_code)]
     pub fn is_detached_head(&self) -> bool {
         self.branch.is_none()
     }
