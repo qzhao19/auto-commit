@@ -21,8 +21,10 @@ impl Default for GitRunOptions {
 
 #[derive(Debug, Clone)]
 pub struct GitCommandResult {
+    #[allow(dead_code)]
     pub args: Vec<String>,
     pub command: String,
+    #[allow(dead_code)]
     pub cwd: PathBuf,
     pub exit_code: i32,
     pub stdout: Vec<u8>,
