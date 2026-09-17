@@ -77,6 +77,12 @@ pub fn validate(config: &AppConfig) -> Result<(), ConfigError> {
                     hint: "export AUTOCOMMIT_LLM_API_KEY=<your-key>".into(),
                 });
             }
+            if p.base_url.as_deref().is_none_or(str::is_empty) {
+                return Err(ConfigError::MissingRequired {
+                    field: "llm.baseUrl",
+                    hint: "export AUTOCOMMIT_LLM_BASE_URL=https://api.deepseek.com (or your provider's endpoint; official OpenAI: https://api.openai.com/v1)".into(),
+                });
+            }
         }
         ProviderName::Ollama => {
             // No auth required
