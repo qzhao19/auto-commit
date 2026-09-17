@@ -177,6 +177,44 @@ fn openai_without_api_key_returns_missing_required() {
 }
 
 #[test]
+fn openai_without_base_url_returns_missing_required() {
+    // api_key satisfied via env; baseUrl absent from every layer → the
+    // error must name the env var that fixes it.
+    let err = ConfigLoader::new(
+        None,
+        env(&[
+            ("AUTOCOMMIT_LLM_MODEL", "gpt-4"),
+            ("AUTOCOMMIT_LLM_API_KEY", "sk-test"),
+        ]),
+        CliArgs::default(),
+    )
+    .load()
+    .unwrap_err();
+
+    let ConfigError::MissingRequired { field, hint } = err else {
+        panic!("expected MissingRequired, got: {err:?}");
+    };
+    assert_eq!(field, "llm.baseUrl");
+    assert!(hint.contains("AUTOCOMMIT_LLM_BASE_URL"), "hint: {hint}");
+}
+
+#[test]
+fn ollama_without_base_url_still_loads() {
+    // ollama keeps its in-code default endpoint — baseUrl stays optional.
+    let cfg = ConfigLoader::new(
+        None,
+        env(&[
+            ("AUTOCOMMIT_LLM_PROVIDER", "ollama"),
+            ("AUTOCOMMIT_LLM_MODEL", "qwen2.5:3b"),
+        ]),
+        CliArgs::default(),
+    )
+    .load()
+    .unwrap();
+    assert!(cfg.llm.provider.base_url.is_none());
+}
+
+#[test]
 fn ollama_does_not_require_api_key() {
     // Design pin: ollama is local; auth is optional, validate() must not flag it.
     let result = ConfigLoader::new(

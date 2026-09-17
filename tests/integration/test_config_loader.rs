@@ -303,6 +303,7 @@ fn a_api_key_from_env_only_for_openai() {
 [llm]
 provider = "openai"
 model = "gpt-4o-mini"
+baseUrl = "https://api.deepseek.com"
 "#,
     );
     let cfg = load_from(
@@ -328,6 +329,7 @@ fn a_api_key_in_toml_is_accepted_with_warning() {
 [llm]
 provider = "openai"
 model = "gpt-4o-mini"
+baseUrl = "https://api.deepseek.com"
 apiKey = "sk-from-toml"
 "#,
     );
