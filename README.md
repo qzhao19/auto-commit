@@ -68,7 +68,7 @@ git config --global alias.auto-commit "!$CONFIG_HOME/autocommit/auto-commit"
 
 Notes:
 
-- The config file is optional. When no `config.toml` is present, configuration is taken entirely from environment variables (and CLI flags). For OpenAI-compatible providers you must at least supply `AUTOCOMMIT_LLM_MODEL`, `AUTOCOMMIT_LLM_API_KEY`, and usually `AUTOCOMMIT_LLM_BASE_URL` (required for any endpoint other than the official OpenAI API).
+- The config file is optional. When no `config.toml` is present, configuration is taken entirely from environment variables (and CLI flags). For OpenAI-compatible providers you must at least supply `AUTOCOMMIT_LLM_MODEL`, `AUTOCOMMIT_LLM_API_KEY`, and `AUTOCOMMIT_LLM_BASE_URL`.
 
 - `git auto-commit` is the recommended entry point; the binary itself is not added to `PATH`.
 
@@ -78,6 +78,17 @@ Notes:
   rm -rf "$CONFIG_HOME/autocommit"
   git config --global --unset alias.auto-commit
   ```
+
+### Set the API key
+
+For any OpenAI-compatible provider, `auto-commit` always reads the API key from the `AUTOCOMMIT_LLM_API_KEY` environment variable — even if a `config.toml` is present. Putting a real key in the TOML file will trigger a warning on every run, so the shell startup file is the proper place for it:
+
+```bash
+echo 'export AUTOCOMMIT_LLM_API_KEY="sk-xxx"' >> ~/.zshrc
+source ~/.zshrc          # zsh (macOS default); use ~/.bashrc on bash
+```
+
+Ollama does not require a key — skip this step when using a local Ollama instance.
 
 ## Quick Start
 
@@ -99,8 +110,8 @@ Minimal environment-only setup (no `config.toml` needed):
 
 ```bash
 export AUTOCOMMIT_LLM_PROVIDER=openai
-export AUTOCOMMIT_LLM_API_KEY=sk-xxx
-export AUTOCOMMIT_LLM_BASE_URL=https://api.deepseek.com   # required for non-official OpenAI endpoints
+export AUTOCOMMIT_LLM_API_KEY=xxx
+export AUTOCOMMIT_LLM_BASE_URL=https://api.deepseek.com
 export AUTOCOMMIT_LLM_MODEL=deepseek-v4-flash
 ```
 
@@ -126,14 +137,15 @@ No layer is required. Each layer only overrides the keys it actually sets, so yo
 
 **Notes**
 
-- Prefer setting the API key via the environment variable. A real key in the TOML file will trigger a warning on every run.
+
+- The API key is read from the `AUTOCOMMIT_LLM_API_KEY` env var — required for `OpenAI-compatible API` with or without a config file (see [Set the API key](#set-the-api-key)). A real key in the TOML file will trigger a warning on every run.
 - `baseUrl` behaviour differs by provider:
   - `openai` — the client appends `/chat/completions`. For any endpoint other than the official OpenAI API this value is effectively required.
   - `ollama` — use the plain origin only (e.g. `http://localhost:11434`)
 
 ### Generation Parameters (optional)
 
-These live under the same `[llm]` table (camelCase in TOML).
+These are defined under the same `[llm]` table (camelCase in TOML).
 
 | Key                | Range / Default             | Description                  |
 | ------------------ | --------------------------- | ---------------------------- |
@@ -182,7 +194,7 @@ tests/                    # unit, integration, e2e
 config.example.toml
 ```
 
-Design notes live in [`docs/`](docs/):
+Design notes are defined in [`docs/`](docs/):
 
 - [`pipeline.md`](docs/pipeline.md) — end-to-end pipeline
 - [`stage0-repository-preflight.md`](docs/stage0-repository-preflight.md) — Stage 0 (preflight)
