@@ -13,7 +13,9 @@ panic = "abort"
 async-openai = { version = "0.41.1", features = ["chat-completion"] }
 clap = { version = "4.6.6", features = ["derive"] }
 crossterm = "0.29.0"
-ollama-rs = "0.3.5"
+# default features enable reqwest/default-tls (native-tls -> OpenSSL),
+# which cannot be satisfied for musl cross builds
+ollama-rs = { version = "0.3.5", default-features = false, features = ["rustls"] }
 rand = "0.10.2"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
