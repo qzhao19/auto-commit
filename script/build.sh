@@ -15,7 +15,9 @@
 #
 # toolchain rules:
 #   - darwin targets need a macOS host (Apple SDK); from Linux: die, use CI
-#   - musl targets build natively on Linux; from macOS need `cross` (docker)
+#   - musl targets always build with `cross` (docker): aws-lc-sys via rustls
+#     compiles C for the target and needs a musl gcc, which stock CI runners
+#     and most dev machines do not have — not even for the host's own arch
 #   - a full 4-asset release comes from a CI matrix (macOS + Linux runners)
 
 set -euo pipefail
@@ -62,11 +64,12 @@ for target in "${WANT[@]}"; do
     *-apple-darwin)
       [[ "$OS" == Darwin ]] || die "$target requires macOS — build it in a CI matrix" ;;
     *-unknown-linux-musl)
-      if [[ "$OS" != Linux ]]; then
-        command -v cross >/dev/null 2>&1 \
-          || die "$target needs 'cross' (cargo install cross) with docker running"
-        runner="cross"
-      fi
+      # always via cross, on any host: its docker image bundles the target
+      # musl gcc that aws-lc-sys needs.
+      command -v cross >/dev/null 2>&1 \
+        || die "$target needs 'cross' (cargo install cross)"
+      docker info >/dev/null 2>&1 || die "cross needs a running docker daemon"
+      runner="cross"
       ;;
   esac
 
