@@ -2,9 +2,9 @@
 
 **AI-powered Git commit message generator** written in Rust.
 
-[![test](https://github.com/qzhao19/auto-commit/actions/workflows/release.yml/badge.svg?job=test)](https://github.com/qzhao19/auto-commit/actions/workflows/release.yml)
-[![release](https://github.com/qzhao19/auto-commit/actions/workflows/release.yml/badge.svg)](https://github.com/qzhao19/auto-commit/actions/workflows/release.yml)
-
+[![Rust 2024](https://img.shields.io/badge/rust-2024-blue.svg)](https://doc.rust-lang.org/edition-guide/rust-2024/index.html)
+[![test](https://github.com/qzhao19/auto-commit/actions/workflows/ci.yml/badge.svg)](https://github.com/qzhao19/auto-commit/actions/workflows/ci.yml)
+[![release](https://img.shields.io/github/v/release/qzhao19/auto-commit)](https://github.com/qzhao19/auto-commit/releases/latest)
 
 ## Overview
 
