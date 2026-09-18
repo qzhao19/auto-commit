@@ -2,6 +2,10 @@
 
 **AI-powered Git commit message generator** written in Rust.
 
+[![test](https://github.com/qzhao19/auto-commit/actions/workflows/release.yml/badge.svg?job=test)](https://github.com/qzhao19/auto-commit/actions/workflows/release.yml)
+[![release](https://github.com/qzhao19/auto-commit/actions/workflows/release.yml/badge.svg)](https://github.com/qzhao19/auto-commit/actions/workflows/release.yml)
+
+
 ## Overview
 
 `auto-commit` inspects your **staged** changes, builds a structured prompt from the repository state, calls an LLM (OpenAI-compatible API or local Ollama), validates the result against Conventional Commits rules, and lets you accept or regenerate the message interactively before committing.
