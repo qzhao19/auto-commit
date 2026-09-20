@@ -271,12 +271,12 @@ fn big_lines(prefix: &str, n: usize) -> String {
 
 fn file_by_path<'a>(snapshot: &'a ClassifiedSnapshot, path: &str) -> &'a StagedFile {
     snapshot
-        .files
+        .files()
         .iter()
         .find(|file| file.path == Path::new(path))
         .unwrap_or_else(|| {
             let all = snapshot
-                .files
+                .files()
                 .iter()
                 .map(|f| f.path.display().to_string())
                 .collect::<Vec<_>>();
@@ -425,7 +425,7 @@ async fn a7_standard_ok() {
         other => panic!("expected staging outcome, got {other:?}"),
     };
 
-    assert_eq!(snapshot.files.len(), 1);
+    assert_eq!(snapshot.files().len(), 1);
     assert_eq!(payload.file_count, 1);
 }
 
@@ -1040,7 +1040,7 @@ async fn b10_clean_continues_to_staging() {
 
     let (snapshot, decision, payload) =
         staging(run_pipeline(repo, BudgetPolicy::default()).await.unwrap());
-    assert_eq!(snapshot.files.len(), 1);
+    assert_eq!(snapshot.files().len(), 1);
     assert_eq!(decision.strategy, DiffStrategy::Full);
     assert!(!payload.body.is_empty());
 }
@@ -1069,7 +1069,7 @@ async fn c1_semantic_full_plus_lock_digest() {
     let (snapshot, decision, payload) =
         staging(run_pipeline(repo, BudgetPolicy::default()).await.unwrap());
 
-    assert_eq!(snapshot.files.len(), 2);
+    assert_eq!(snapshot.files().len(), 2);
     let lib = file_by_path(&snapshot, "src/lib.rs");
     assert_eq!(lib.change_type, ChangeType::Modified);
     assert_eq!(lib.old_path, None);
@@ -1109,7 +1109,7 @@ async fn c2_deleted_semantic() {
     let (snapshot, decision, payload) =
         staging(run_pipeline(repo, BudgetPolicy::default()).await.unwrap());
 
-    assert_eq!(snapshot.files.len(), 1);
+    assert_eq!(snapshot.files().len(), 1);
     let file = file_by_path(&snapshot, "src/lib.rs");
     assert_eq!(file.change_type, ChangeType::Deleted);
     assert_eq!(file.category, FileCategory::SemanticText);
@@ -1139,7 +1139,7 @@ async fn c3_pure_rename() {
     let (snapshot, decision, payload) =
         staging(run_pipeline(repo, BudgetPolicy::default()).await.unwrap());
 
-    assert_eq!(snapshot.files.len(), 1);
+    assert_eq!(snapshot.files().len(), 1);
     let file = file_by_path(&snapshot, "src/lib2.rs");
     assert_eq!(file.change_type, ChangeType::Renamed);
     assert_eq!(file.old_path.as_deref(), Some(Path::new("src/lib.rs")));
@@ -1170,7 +1170,7 @@ async fn c4_generated_header_probe() {
     let (snapshot, decision, payload) =
         staging(run_pipeline(repo, BudgetPolicy::default()).await.unwrap());
 
-    assert_eq!(snapshot.files.len(), 1);
+    assert_eq!(snapshot.files().len(), 1);
     let file = file_by_path(&snapshot, "src/pb/messages.rs");
     assert_eq!(file.change_type, ChangeType::Added);
     assert_eq!(file.category, FileCategory::Generated);
@@ -1220,7 +1220,7 @@ async fn c5_budget_zero_respects_categories() {
     };
     let (snapshot, decision, payload) = staging(run_pipeline(repo, policy).await.unwrap());
 
-    assert_eq!(snapshot.files.len(), 4);
+    assert_eq!(snapshot.files().len(), 4);
     assert_eq!(
         file_by_path(&snapshot, "src/lib.rs").category,
         FileCategory::SemanticText
@@ -1266,7 +1266,7 @@ async fn c6_over_budget_truncate_lines() {
     let (snapshot, decision, payload) =
         staging(run_pipeline(repo, BudgetPolicy::default()).await.unwrap());
 
-    assert_eq!(snapshot.files.len(), 1);
+    assert_eq!(snapshot.files().len(), 1);
     let file = file_by_path(&snapshot, "src/big.rs");
     assert_eq!(file.change_type, ChangeType::Modified);
     assert_eq!((file.insertions, file.deletions), (Some(250), Some(250)));
@@ -1309,7 +1309,7 @@ async fn c7_over_budget_sample_hunks() {
     };
     let (snapshot, decision, payload) = staging(run_pipeline(repo, policy).await.unwrap());
 
-    assert_eq!(snapshot.files.len(), 1);
+    assert_eq!(snapshot.files().len(), 1);
     let file = file_by_path(&snapshot, "src/big2.rs");
     assert_eq!(file.change_type, ChangeType::Added);
     assert_eq!((file.insertions, file.deletions), (Some(500), Some(0)));
@@ -1365,7 +1365,7 @@ async fn c8_lock_digest_capacity() {
     let (snapshot, decision, payload) =
         staging(run_pipeline(repo, BudgetPolicy::default()).await.unwrap());
 
-    assert_eq!(snapshot.files.len(), 1);
+    assert_eq!(snapshot.files().len(), 1);
     let lock = file_by_path(&snapshot, "Cargo.lock");
     assert_eq!(lock.category, FileCategory::DependencyLock);
     assert_eq!((lock.insertions, lock.deletions), (Some(80), Some(80)));
@@ -1403,7 +1403,7 @@ async fn c9_lock_digest_empty_when_no_signal() {
     let (snapshot, decision, payload) =
         staging(run_pipeline(repo, BudgetPolicy::default()).await.unwrap());
 
-    assert_eq!(snapshot.files.len(), 1);
+    assert_eq!(snapshot.files().len(), 1);
     let lock = file_by_path(&snapshot, "Cargo.lock");
     assert_eq!(lock.category, FileCategory::DependencyLock);
     assert_eq!((lock.insertions, lock.deletions), (Some(1), Some(1)));

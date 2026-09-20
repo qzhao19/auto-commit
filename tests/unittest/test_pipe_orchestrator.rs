@@ -113,8 +113,8 @@ fn count_category(files: &[StagedFile], category: FileCategory) -> usize {
 }
 
 fn sole_file(snapshot: &ClassifiedSnapshot) -> &StagedFile {
-    assert_eq!(snapshot.files.len(), 1, "expected exactly one staged file");
-    &snapshot.files[0]
+    assert_eq!(snapshot.files().len(), 1, "expected exactly one staged file");
+    &snapshot.files()[0]
 }
 
 const PNG_BYTES: &[u8] = &[
@@ -808,17 +808,17 @@ async fn mixed_categories_route_into_their_lanes() {
         AssemblyContext::FromStaging {
             snapshot, payload, ..
         } => {
-            assert_eq!(snapshot.files.len(), 4);
+            assert_eq!(snapshot.files().len(), 4);
             assert_eq!(
-                count_category(&snapshot.files, FileCategory::SemanticText),
+                count_category(&snapshot.files(), FileCategory::SemanticText),
                 1
             );
             assert_eq!(
-                count_category(&snapshot.files, FileCategory::DependencyLock),
+                count_category(&snapshot.files(), FileCategory::DependencyLock),
                 1
             );
-            assert_eq!(count_category(&snapshot.files, FileCategory::Binary), 1);
-            assert_eq!(count_category(&snapshot.files, FileCategory::Generated), 1);
+            assert_eq!(count_category(&snapshot.files(), FileCategory::Binary), 1);
+            assert_eq!(count_category(&snapshot.files(), FileCategory::Generated), 1);
 
             assert!(payload.body.contains("diff --git a/a.txt"));
             assert!(payload.body.contains("+version = 4"));
@@ -1067,7 +1067,7 @@ async fn path_with_spaces_flows_through_all_stages() {
         AssemblyContext::FromStaging {
             snapshot, payload, ..
         } => {
-            assert_eq!(snapshot.files[0].path, Path::new("my file.txt"));
+            assert_eq!(snapshot.files()[0].path, Path::new("my file.txt"));
             assert!(
                 payload.body.contains("my file.txt"),
                 "path must survive into the diff body"

@@ -79,7 +79,8 @@ fn staging_ctx(
 ) -> AssemblyContext {
     AssemblyContext::FromStaging {
         repo: repo(Some("main"), Some("abc123")),
-        snapshot: ClassifiedSnapshot::from_files(files),
+        snapshot: ClassifiedSnapshot::from_files(files)
+            .expect("test fixtures must be fully classified"),
         payload,
         decision: decision(strategy),
     }

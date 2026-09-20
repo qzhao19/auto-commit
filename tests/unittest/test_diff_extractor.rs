@@ -73,7 +73,7 @@ fn file(
 }
 
 fn snapshot(files: Vec<StagedFile>) -> ClassifiedSnapshot {
-    ClassifiedSnapshot::from_files(files)
+    ClassifiedSnapshot::from_files(files).expect("test fixtures must be fully classified")
 }
 
 fn two_file_diff() -> &'static str {

@@ -77,7 +77,7 @@ fn snapshot_of(files: Vec<StagedFile>) -> StagedSnapshot {
 
 fn category_of(result: &ClassifiedSnapshot, path: &str) -> FileCategory {
     result
-        .files
+        .files()
         .iter()
         .find(|file| file.path == PathBuf::from(path))
         .map(|file| file.category)
@@ -428,8 +428,8 @@ async fn mixed_batch_classifies_all_in_order() {
     assert_eq!(category_of(&result, "plain.ts"), FileCategory::SemanticText);
     assert_eq!(category_of(&result, "ghost.ts"), FileCategory::SemanticText);
     // Order preserved — result[i] corresponds to input[i].
-    assert_eq!(result.files[0].path, PathBuf::from("gen_header.ts"));
-    assert_eq!(result.files[2].path, PathBuf::from("ghost.ts"));
+    assert_eq!(result.files()[0].path, PathBuf::from("gen_header.ts"));
+    assert_eq!(result.files()[2].path, PathBuf::from("ghost.ts"));
 }
 
 /// C-14: a path with a newline cannot become a --batch line — that one
@@ -490,14 +490,14 @@ async fn metadata_survives_classification() {
         .await
         .unwrap();
 
-    let rename = &result.files[0];
+    let rename = &result.files()[0];
     assert_eq!(rename.category, FileCategory::Generated);
     assert_eq!(rename.change_type, ChangeType::Renamed);
     assert_eq!(rename.old_path.as_deref(), Some(Path::new("user.pb.go")));
     assert_eq!(rename.similarity, Some(95));
     assert_eq!((rename.insertions, rename.deletions), (Some(10), Some(2)));
 
-    let text = &result.files[1];
+    let text = &result.files()[1];
     assert_eq!(text.category, FileCategory::SemanticText);
     assert_eq!((text.insertions, text.deletions), (Some(7), Some(3)));
 }
@@ -510,7 +510,7 @@ async fn empty_snapshot_yields_empty_result() {
     let classifier = FileClassifier::new(&runner);
 
     let result = classifier.classify(&snapshot_of(vec![])).await.unwrap();
-    assert!(result.files.is_empty());
+    assert!(result.files().is_empty());
 }
 
 //  Real-world layouts (C-17 .. C-21)
@@ -846,7 +846,7 @@ async fn priority_ladder_one_classify_call_ranks_all_layers() {
         .await
         .unwrap();
 
-    let ladder: Vec<FileCategory> = result.files.iter().map(|f| f.category).collect();
+    let ladder: Vec<FileCategory> = result.files().iter().map(|f| f.category).collect();
     assert_eq!(
         ladder,
         vec![
