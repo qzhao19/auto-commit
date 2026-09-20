@@ -140,7 +140,7 @@ fn append_seed_message(
 fn append_change_summary(out: &mut String, snapshot: &ClassifiedSnapshot) {
     let stats = SemanticTextStats::from_snapshot(&snapshot);
     let lock_count = snapshot
-        .files
+        .files()
         .iter()
         .filter(|f| f.category == FileCategory::DependencyLock)
         .count();
@@ -178,7 +178,7 @@ fn append_change_summary(out: &mut String, snapshot: &ClassifiedSnapshot) {
     ];
 
     let mut any = false;
-    for file in &snapshot.files {
+    for file in snapshot.files() {
         let Some(kind) = KINDS
             .iter()
             .find_map(|(category, kind)| (*category == file.category).then_some(*kind))

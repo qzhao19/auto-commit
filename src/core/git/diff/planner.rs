@@ -69,7 +69,7 @@ impl BudgetPlanner {
         let capacity = policy.max_changed_lines_per_file;
         let mut raw = 0u64;
 
-        for file in &snapshot.files {
+        for file in snapshot.files() {
             if file.category != FileCategory::SemanticText {
                 continue;
             }

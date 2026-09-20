@@ -78,7 +78,7 @@ impl<'a> FileClassifier<'a> {
             }
         }
 
-        Ok(ClassifiedSnapshot::from_files(files))
+        ClassifiedSnapshot::from_files(files)
     }
 
     fn blob_spec(file: &StagedFile) -> Option<String> {

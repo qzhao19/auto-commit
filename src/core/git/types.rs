@@ -1,5 +1,7 @@
 use std::path::{Path, PathBuf};
 
+use crate::shared::exception::{GitError, GitErrorCode};
+
 // ---- Repository Preflight ----
 
 /// Paths inside the Git directory that are used by later stages.
@@ -246,18 +248,27 @@ pub struct StagedSnapshot {
 
 // ---- File Classification ----
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct ClassifiedSnapshot {
-    pub files: Vec<StagedFile>,
+    files: Vec<StagedFile>,
 }
 
 impl ClassifiedSnapshot {
-    pub fn from_files(files: Vec<StagedFile>) -> Self {
-        debug_assert!(
-            files.iter().all(|f| f.category != FileCategory::Unknown),
-            "ClassifiedSnapshot must not contain Unknown"
-        );
-        Self { files }
+    pub fn from_files(files: Vec<StagedFile>) -> Result<Self, GitError> {
+        if let Some(file) = files.iter().find(|f| f.category == FileCategory::Unknown) {
+            return Err(GitError::new(
+                GitErrorCode::Other,
+                format!(
+                    "unclassified file in snapshot: {} (category is still Unknown)",
+                    file.path.display()
+                ),
+            ));
+        }
+        Ok(Self { files })
+    }
+
+    pub fn files(&self) -> &[StagedFile] {
+        &self.files
     }
 }
 
