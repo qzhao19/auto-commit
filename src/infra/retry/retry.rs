@@ -5,10 +5,6 @@ use rand;
 
 use crate::shared::config::RetryConfig;
 
-/// Retry execution result with three states:
-/// - `Ok`: Success
-/// - `NonRetryable`: Error is not retryable, passed through as-is
-/// - `Exhausted`: Retry limit exhausted, carries actual attempt count and last error
 #[derive(Debug)]
 pub enum RetryResult<T, E> {
     Ok(T),
@@ -40,35 +36,41 @@ impl Retry {
             match func().await {
                 Ok(value) => return RetryResult::Ok(value),
                 Err(error) => {
-                    // Last attempt failed: treat as exhausted regardless of error retryability
+                    // Non-retryable: return immediately, do not consume retry quota
+                    if !is_retryable(&error) {
+                        return RetryResult::NonRetryable(error);
+                    }
+
+                    // Retryable error
                     if attempt == self.config.max_retries {
                         return RetryResult::Exhausted {
                             attempts: attempt + 1, // Actual total attempt count
                             last: error,
                         };
                     }
-                    // Non-retryable: return immediately, do not consume retry quota
-                    if !is_retryable(&error) {
-                        return RetryResult::NonRetryable(error);
-                    }
                     tokio::time::sleep(self.calculate_delay(attempt)).await;
                 }
             }
         }
-        unreachable!() // Last attempt in loop must return
+        // Last attempt in loop must return
+        unreachable!()
     }
 
     /// Exponential backoff: initial_delay * factor^attempt, optional ±20% jitter, clamped to max_delay.
     fn calculate_delay(&self, attempt: u32) -> Duration {
-        let base_ms = self.config.initial_delay.as_millis() as f64
-            * (self.config.factor as f64).powi(attempt as i32);
-        let mut delay_ms = base_ms;
+        let max_ms = self.config.max_delay.as_millis() as f64;
+
+        // Bound exponential term before jitter
+        let mut delay_ms = (self.config.initial_delay.as_millis() as f64
+            * (self.config.factor as f64).powi(attempt as i32))
+        .min(max_ms);
+
         if self.config.jitter {
-            let jitter_ms = base_ms * 0.4 * (rand::random::<f64>() - 0.5);
+            let jitter_ms = delay_ms * 0.4 * (rand::random::<f64>() - 0.5);
             delay_ms += jitter_ms;
         }
-        let max_ms = self.config.max_delay.as_millis() as f64;
-        return Duration::from_millis(delay_ms.clamp(0.0, max_ms) as u64);
+
+        Duration::from_millis(delay_ms.clamp(0.0, max_ms) as u64)
     }
 }
 
