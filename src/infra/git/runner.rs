@@ -1,6 +1,5 @@
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use std::usize;
 
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
@@ -153,6 +152,12 @@ impl GitRunner {
         // Concurrent
         let (stdin_result, stdout_result, stderr_result) =
             tokio::join!(write_stdin, read_stdout, read_stderr);
+
+        let stream_failed =
+            stdin_result.is_err() || stdout_result.is_err() || stderr_result.is_err();
+        if stream_failed {
+            let _ = child.start_kill();
+        }
 
         let status = child.wait().await.map_err(|err| {
             GitError::with_source(GitErrorCode::Other, "cat-file wait failed", err)
