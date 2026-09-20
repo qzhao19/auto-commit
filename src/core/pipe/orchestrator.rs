@@ -29,9 +29,12 @@ impl<'a> PipeOrchestrator<'a> {
         match state.action() {
             OperationAction::Abort => Err(abort_error(&state)),
             OperationAction::Reuse | OperationAction::Template => {
-                let operation = state
-                    .kind()
-                    .expect("reuse/template state always carries Operation");
+                let operation = state.kind().ok_or_else(|| {
+                    GitError::new(
+                        GitErrorCode::Other,
+                        "reuse/template operation state is missing its operation kind",
+                    )
+                })?;
                 Ok(AssemblyContext::FromOperation {
                     repo,
                     operation,
