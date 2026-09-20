@@ -71,13 +71,16 @@ pub fn validate(config: &AppConfig) -> Result<(), ConfigError> {
     }
     match p.provider {
         ProviderName::Openai => {
-            if p.api_key.as_ref().is_none_or(|k| k.as_str().is_empty()) {
+            if p.api_key
+                .as_ref()
+                .is_none_or(|k| k.as_str().trim().is_empty())
+            {
                 return Err(ConfigError::MissingRequired {
                     field: "llm.api_key",
                     hint: "export AUTOCOMMIT_LLM_API_KEY=<your-key>".into(),
                 });
             }
-            if p.base_url.as_deref().is_none_or(str::is_empty) {
+            if p.base_url.as_deref().is_none_or(|s| s.trim().is_empty()) {
                 return Err(ConfigError::MissingRequired {
                     field: "llm.baseUrl",
                     hint: "export AUTOCOMMIT_LLM_BASE_URL=https://api.deepseek.com (or your provider's endpoint; official OpenAI: https://api.openai.com/v1)".into(),
