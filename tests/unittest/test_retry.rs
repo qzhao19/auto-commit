@@ -204,10 +204,10 @@ async fn execute_with_max_retries_zero_makes_single_attempt() {
     }
 }
 
+/// A permanent error is NonRetryable no matter when it arrives
 #[tokio::test]
-async fn execute_non_retryable_on_last_attempt_reports_exhausted() {
-    let max_retries = 1;
-    let retry = Retry::new(fast_config(max_retries)).unwrap();
+async fn execute_non_retryable_on_last_attempt_reports_non_retryable() {
+    let retry = Retry::new(fast_config(1)).unwrap();
     let calls = Arc::new(AtomicU32::new(0));
 
     let result = retry
@@ -225,14 +225,28 @@ async fn execute_non_retryable_on_last_attempt_reports_exhausted() {
 
     assert_eq!(calls.load(Ordering::SeqCst), 2);
     match result {
-        RetryResult::Exhausted { attempts, last } => {
-            assert_eq!(attempts, 2);
-            assert_eq!(
-                last,
-                TestErr::NonRetryable,
-                "non-retryable on last attempt must surface in `last`"
-            );
-        }
-        other => panic!("expected Exhausted, got {other:?}"),
+        RetryResult::NonRetryable(e) => assert_eq!(e, TestErr::NonRetryable),
+        other => panic!("expected NonRetryable, got {other:?}"),
+    }
+}
+
+/// max_retries == 0 means there is no budget to exhaust: a permanent error
+/// must be NonRetryable, not Exhausted { attempts: 1 }.
+#[tokio::test]
+async fn execute_max_retries_zero_still_reports_non_retryable() {
+    let retry = Retry::new(fast_config(0)).unwrap();
+    let calls = Arc::new(AtomicU32::new(0));
+
+    let result = retry
+        .execute(
+            |e| matches!(e, TestErr::Retryable),
+            counting_func(&calls, |_| Err(TestErr::NonRetryable)),
+        )
+        .await;
+
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    match result {
+        RetryResult::NonRetryable(e) => assert_eq!(e, TestErr::NonRetryable),
+        other => panic!("expected NonRetryable, got {other:?}"),
     }
 }
