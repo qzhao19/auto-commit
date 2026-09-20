@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::marker::PhantomData;
 
 use tokio::sync::mpsc;
@@ -42,10 +43,11 @@ where
 
     /// Run until the user accepts a candidate or exits.
     pub async fn run(mut self) -> Result<Option<String>, LlmError> {
+        let mut queued: VecDeque<UserKey> = VecDeque::new();
+
         'generate: loop {
             self.ui.show_generating();
 
-            let mut pending: Option<UserKey> = None;
             let future = (self.generate)();
             tokio::pin!(future);
 
@@ -54,8 +56,8 @@ where
                     result = &mut future => break result?,
                     key = self.keys.recv() => match key {
                         Some(UserKey::Exit) | None => return Ok(None),
-                        other => {
-                            pending = other;
+                        Some(other) => {
+                            queued.push_back(other);
                             continue;
                         }
                     }
@@ -64,7 +66,6 @@ where
             // Latest candidate becomes current
             self.pool.push(message);
 
-            let mut buffered = pending.take();
             loop {
                 let Some((candidate_msg, position, total)) = self.pool.current() else {
                     return Ok(None);
@@ -76,7 +77,7 @@ where
                     total,
                 });
 
-                let key = match buffered.take() {
+                let key = match queued.pop_front() {
                     Some(key) => Some(key),
                     None => self.keys.recv().await,
                 };
