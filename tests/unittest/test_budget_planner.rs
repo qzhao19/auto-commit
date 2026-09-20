@@ -4,6 +4,7 @@ use crate::core::git::diff::BudgetPlanner;
 use crate::core::git::types::{
     BudgetPolicy, ChangeType, ClassifiedSnapshot, DiffStrategy, FileCategory, StagedFile,
 };
+use crate::shared::exception::GitErrorCode;
 
 //  helpers
 
@@ -53,7 +54,7 @@ fn semantic(path: &str, insertions: u64, deletions: u64) -> StagedFile {
 }
 
 fn snapshot(files: Vec<StagedFile>) -> ClassifiedSnapshot {
-    ClassifiedSnapshot::from_files(files)
+    ClassifiedSnapshot::from_files(files).expect("test fixtures must be fully classified")
 }
 
 //  Full
@@ -317,4 +318,19 @@ fn safety_factor_inflates_estimate() {
 
     assert_eq!(decision.strategy, DiffStrategy::Full);
     assert_eq!(decision.estimated_diff_tokens, 1_300);
+}
+
+#[test]
+fn from_files_rejects_unknown_category() {
+    let err = ClassifiedSnapshot::from_files(vec![file(
+        "a.rs",
+        ChangeType::Modified,
+        Some(1),
+        Some(1),
+        FileCategory::Unknown,
+    )])
+    .unwrap_err();
+
+    assert_eq!(err.code, GitErrorCode::Other);
+    assert!(err.message.contains("a.rs"));
 }
