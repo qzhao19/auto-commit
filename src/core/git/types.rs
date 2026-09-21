@@ -320,7 +320,7 @@ impl SemanticTextStats {
 
     #[inline]
     pub const fn total_changed_lines(&self) -> u64 {
-        self.total_deletions + self.total_insertions
+        self.total_deletions.saturating_add(self.total_insertions)
     }
 }
 
