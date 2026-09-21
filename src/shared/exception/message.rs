@@ -44,7 +44,7 @@ impl fmt::Display for ValidationError {
                 write!(f, "description after the colon must not be empty")
             }
             Self::DescriptionNotLowercase => {
-                write!(f, "description must not start with an uppercase letter")
+                write!(f, "description must not start with an lowercase letter")
             }
             Self::DescriptionTooLong { actual } => write!(
                 f,
