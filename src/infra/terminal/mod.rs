@@ -1,5 +1,6 @@
-mod crossterm;
+#[path = "crossterm.rs"]
+mod tty;
 mod ui;
 
-pub use crossterm::{KeyListener, RawModeGuard};
+pub use tty::{KeyListener, RawModeGuard};
 pub use ui::TerminalUi;
