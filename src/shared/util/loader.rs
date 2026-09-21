@@ -1,8 +1,11 @@
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::time::Duration;
 
 use crate::shared::config::{AppConfig, ProviderName};
 use crate::shared::exception::ConfigError;
+
+const MAX_DURATION: Duration = Duration::from_secs(24 * 60 * 60);
 
 pub fn env_str<'a>(env: &'a [(String, String)], var: &str) -> Option<&'a str> {
     env.iter().find(|(k, _)| k == var).map(|(_, v)| v.as_str())
@@ -50,12 +53,15 @@ pub fn resolve_default_config_path() -> Option<PathBuf> {
         }
     }
 
-    std::env::var("HOME").ok().map(|home| {
-        PathBuf::from(home)
-            .join(".config")
-            .join("autocommit")
-            .join("config.toml")
-    })
+    std::env::var("HOME")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .map(|home| {
+            PathBuf::from(home)
+                .join(".config")
+                .join("autocommit")
+                .join("config.toml")
+        })
 }
 
 // --- Validation ---
@@ -122,6 +128,12 @@ pub fn validate(config: &AppConfig) -> Result<(), ConfigError> {
             reason: "must be > 0".into(),
         });
     }
+    if r.initial_delay > MAX_DURATION {
+        return Err(ConfigError::InvalidValue {
+            field: "resilience.retry.initial_delay",
+            reason: "must be <= 24h (86400000 ms)".into(),
+        });
+    }
     if !r.factor.is_finite() || r.factor < 1.0 {
         return Err(ConfigError::InvalidValue {
             field: "resilience.retry.factor",
@@ -134,10 +146,22 @@ pub fn validate(config: &AppConfig) -> Result<(), ConfigError> {
             reason: "must be >= initial_delay".into(),
         });
     }
+    if r.max_delay > MAX_DURATION {
+        return Err(ConfigError::InvalidValue {
+            field: "resilience.retry.max_delay",
+            reason: "must be <= 24h (86400000 ms)".into(),
+        });
+    }
     if config.resilience.timeout.timeout.is_zero() {
         return Err(ConfigError::InvalidValue {
             field: "resilience.timeout.timeout_ms",
             reason: "must be > 0".into(),
+        });
+    }
+    if config.resilience.timeout.timeout > MAX_DURATION {
+        return Err(ConfigError::InvalidValue {
+            field: "resilience.timeout.timeout_ms",
+            reason: "must be <= 24h (86400000 ms)".into(),
         });
     }
 
