@@ -1,6 +1,7 @@
 use std::io::{self, IsTerminal};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::thread::JoinHandle;
 use std::time::Duration;
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
@@ -34,34 +35,34 @@ impl Drop for RawModeGuard {
 /// Stops the key listener thread when dropped.
 pub struct StopGuard {
     stop: Arc<AtomicBool>,
+    handle: Option<JoinHandle<()>>,
 }
 
 impl Drop for StopGuard {
     fn drop(&mut self) {
-        self.stop.store(true, Ordering::Relaxed);
+        self.stop.store(true, Ordering::Release);
+        if let Some(handle) = self.handle.take() {
+            let _ = handle.join();
+        }
     }
 }
 
 /// Background key listener
-///
-/// Spawns a dedicated thread that reads terminal key events (crossterm's
-/// `event::read` is blocking, so it must not run on a tokio worker thread)
-/// and forwards them as `UserKey` values through an mpsc channel
 pub struct KeyListener {
     _stop: StopGuard,
     rx: mpsc::UnboundedReceiver<UserKey>,
 }
 
 impl KeyListener {
-    pub fn spawn() -> Self {
+    pub fn spawn() -> io::Result<Self> {
         let stop = Arc::new(AtomicBool::new(false));
         let (tx, rx) = mpsc::unbounded_channel();
         let stop_flag = stop.clone();
 
-        std::thread::Builder::new()
+        let handle = std::thread::Builder::new()
             .name("ui-key-listener".into())
             .spawn(move || {
-                while !stop_flag.load(Ordering::Relaxed) {
+                while !stop_flag.load(Ordering::Acquire) {
                     match event::poll(Duration::from_millis(50)) {
                         Ok(true) => {
                             if let Ok(Event::Key(key)) = event::read() {
@@ -75,13 +76,15 @@ impl KeyListener {
                         Err(_) => break,
                     }
                 }
-            })
-            .expect("failed to spawn key listener thread");
+            })?;
 
-        Self {
-            _stop: StopGuard { stop },
+        Ok(Self {
+            _stop: StopGuard {
+                stop,
+                handle: Some(handle),
+            },
             rx,
-        }
+        })
     }
 
     pub fn into_parts(self) -> (StopGuard, mpsc::UnboundedReceiver<UserKey>) {
