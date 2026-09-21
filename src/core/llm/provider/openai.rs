@@ -91,15 +91,24 @@ impl Provider for OpenAiProvider {
                 .await
                 .map_err(openai_err)?;
 
-            response
-                .choices
-                .into_iter()
-                .next()
-                .and_then(|c| c.message.content)
+            let choice = response.choices.into_iter().next().ok_or_else(|| {
+                LlmError::Provider(
+                    ProviderErrorType::Fatal,
+                    "response contained no choices".to_string(),
+                )
+            })?;
+
+            choice
+                .message
+                .content
+                .filter(|c| !c.trim().is_empty())
                 .ok_or_else(|| {
                     LlmError::Provider(
                         ProviderErrorType::Fatal,
-                        "response had no content".to_string(),
+                        format!(
+                            "response had no content (finish_reason: {:?})",
+                            choice.finish_reason
+                        ),
                     )
                 })
         })
