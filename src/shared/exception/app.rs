@@ -4,6 +4,7 @@ use super::config::ConfigError;
 use super::git::GitError;
 use super::llm::LlmError;
 
+#[derive(Debug)]
 pub enum AppError {
     Config(ConfigError), // exit 2
     Pipeline(GitError),  // exit 3 (preflight / bisect / conflicts / empty staging)
