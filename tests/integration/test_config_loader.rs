@@ -588,12 +588,13 @@ fn d_penalties_out_of_range_rejected() {
     assert_eq!(invalid_value_field(err).0, "llm.presence_penalty");
 }
 
-// D17: resilience validation — source adds two rules the spec didn't list
-// (max_retries <= 10, initial_delay > 0); all five are exercised via env,
-// which is the highest layer for resilience.
+// D17: resilience validation — all rules exercised via env, the highest
+// layer for resilience. Zero values must abort (never silently fall
+// back to defaults), and values beyond the 24h ceiling must abort with
+// the offending field named.
 #[test]
 fn d_resilience_validation_rejects_each_rule_violation() {
-    let cases: [(&str, &str, &str); 5] = [
+    let cases: [(&str, &str, &str); 7] = [
         (
             "AUTOCOMMIT_RETRY_MAX_RETRIES",
             "11",
@@ -604,17 +605,30 @@ fn d_resilience_validation_rejects_each_rule_violation() {
             "0",
             "resilience.retry.initial_delay",
         ),
+        (
+            "AUTOCOMMIT_RETRY_INITIAL_DELAY_MS",
+            "86400001",
+            "resilience.retry.initial_delay",
+        ),
         ("AUTOCOMMIT_RETRY_FACTOR", "0.9", "resilience.retry.factor"),
+        (
+            "AUTOCOMMIT_RETRY_MAX_DELAY_MS",
+            "86400001",
+            "resilience.retry.max_delay",
+        ),
         (
             "AUTOCOMMIT_TIMEOUT_MS",
             "0",
             "resilience.timeout.timeout_ms",
         ),
-        // max_delay < initial_delay needs two keys; handled separately below
-        ("AUTOCOMMIT_RETRY_INITIAL_DELAY_MS", "0", ""), // placeholder, skipped
+        (
+            "AUTOCOMMIT_TIMEOUT_MS",
+            "86400001",
+            "resilience.timeout.timeout_ms",
+        ),
     ];
 
-    for (var, value, field) in &cases[..4] {
+    for (var, value, field) in &cases {
         let mut env_vars = ollama_env();
         env_vars.push((var.to_string(), value.to_string()));
         let err = load_from(None, env_vars, cli()).expect_err(&format!("{var}={value} must fail"));
@@ -635,6 +649,21 @@ fn d_retry_max_delay_below_initial_delay_rejected() {
     let (field, reason) = invalid_value_field(err);
     assert_eq!(field, "resilience.retry.max_delay");
     assert!(reason.contains(">= initial_delay"), "reason: {reason}");
+}
+
+// D17b: the zero rule is not env-only — a TOML `initialDelayMs = 0` must
+// also abort. merge passes the raw value through to validate; a silent
+// fallback to the default would hide the misconfiguration.
+#[test]
+fn d_toml_zero_initial_delay_rejected() {
+    let dir = TestDir::new("d17b");
+    let path = write_toml(
+        &dir,
+        "[llm]\nprovider = \"ollama\"\nmodel = \"m\"\n\n[resilience.retry]\ninitialDelayMs = 0\n",
+    );
+
+    let err = load_from(Some(path), ollama_env(), cli()).expect_err("must fail");
+    assert_eq!(invalid_value_field(err).0, "resilience.retry.initial_delay");
 }
 
 // D18: invalid low-layer values masked by valid higher-layer values.
