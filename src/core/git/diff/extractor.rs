@@ -355,10 +355,10 @@ pub fn path_summary(snapshot: &ClassifiedSnapshot) -> DiffPayload {
 
 // Helper function
 
-fn collect_paths_by_category(snapshot: &ClassifiedSnapshot, categiry: FileCategory) -> Vec<&str> {
+fn collect_paths_by_category(snapshot: &ClassifiedSnapshot, category: FileCategory) -> Vec<&str> {
     let mut paths = Vec::new();
 
-    for file in snapshot.files().iter().filter(|f| f.category == categiry) {
+    for file in snapshot.files().iter().filter(|f| f.category == category) {
         // Rename/copy detection needs BOTH sides of the pair pathspec
         for path in [file.old_path.as_deref(), Some(file.path.as_path())]
             .into_iter()
@@ -375,8 +375,8 @@ fn collect_paths_by_category(snapshot: &ClassifiedSnapshot, categiry: FileCatego
 }
 
 fn is_changed_line(line: &str) -> bool {
-    (line.starts_with('+') && !line.starts_with("++"))
-        || (line.starts_with('-') && !line.starts_with("--"))
+    (line.starts_with('+') && !line.starts_with("+++ "))
+        || (line.starts_with('-') && !line.starts_with("--- "))
 }
 
 fn contains_dotted_number(line: &str) -> bool {
