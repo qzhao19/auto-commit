@@ -19,7 +19,7 @@ impl CandidatePool {
     pub fn with_capacity(capacity: usize) -> Self {
         assert!(capacity > 0, "candidate pool capacity must be non-zero");
         Self {
-            messages: VecDeque::new(),
+            messages: VecDeque::with_capacity(capacity),
             cursor: 0,
             capacity,
         }
