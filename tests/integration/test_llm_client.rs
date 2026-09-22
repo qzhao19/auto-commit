@@ -284,7 +284,7 @@ async fn a_openai_config_reaches_http_and_content_round_trips() {
     .await;
 
     let client = LlmClient::new(&openai_config(&server.url())).expect("client builds");
-    let text = client.invoke(msg()).await.expect("invoke succeeds");
+    let text = client.invoke(&msg()).await.expect("invoke succeeds");
 
     assert_eq!(text, "feat: add login endpoint");
     assert_eq!(server.request_count(), 1);
@@ -323,7 +323,7 @@ async fn a_openai_generation_params_appear_in_request_body() {
     config.llm.generation.presence_penalty = 0.75;
 
     let client = LlmClient::new(&config).expect("client builds");
-    client.invoke(msg()).await.expect("invoke succeeds");
+    client.invoke(&msg()).await.expect("invoke succeeds");
 
     let body = &server.requests()[0].body;
     for expected in [
@@ -356,7 +356,7 @@ async fn a_openai_without_api_key_sends_empty_bearer_credentials() {
 
     let client = LlmClient::new(&config).expect("construction succeeds without a key");
     let err = client
-        .invoke(msg())
+        .invoke(&msg())
         .await
         .expect_err("key-less request against a 401 server must fail");
 
@@ -390,7 +390,7 @@ async fn a_ollama_config_reaches_http_and_content_round_trips() {
     assert!(config.llm.provider.api_key.is_none());
 
     let client = LlmClient::new(&config).expect("client builds");
-    let text = client.invoke(msg()).await.expect("invoke succeeds");
+    let text = client.invoke(&msg()).await.expect("invoke succeeds");
 
     assert_eq!(text, "fix: null pointer in parser");
     let request = &server.requests()[0];
@@ -424,7 +424,7 @@ async fn b_system_and_user_messages_map_to_chat_roles() {
     .await;
     LlmClient::new(&openai_config(&openai_server.url()))
         .expect("builds")
-        .invoke(message.clone())
+        .invoke(&message)
         .await
         .expect("succeeds");
     let body = &openai_server.requests()[0].body;
@@ -442,7 +442,7 @@ async fn b_system_and_user_messages_map_to_chat_roles() {
     .await;
     LlmClient::new(&ollama_config(&ollama_server.url()))
         .expect("builds")
-        .invoke(message)
+        .invoke(&message)
         .await
         .expect("succeeds");
     let body = &ollama_server.requests()[0].body;
@@ -466,7 +466,7 @@ async fn b_prompt_is_sent_verbatim_at_both_size_extremes() {
     let client = LlmClient::new(&openai_config(&server.url())).expect("client builds");
 
     client
-        .invoke(LlmMessage::user_message_only(String::new()))
+        .invoke(&LlmMessage::user_message_only(String::new()))
         .await
         .expect("empty prompt must not be rejected locally");
     assert!(
@@ -476,7 +476,7 @@ async fn b_prompt_is_sent_verbatim_at_both_size_extremes() {
 
     let big = "x".repeat(100_000);
     client
-        .invoke(LlmMessage::user_message_only(big.clone()))
+        .invoke(&LlmMessage::user_message_only(big.clone()))
         .await
         .expect("huge prompt must not be rejected locally");
     let body = &server.requests()[1].body;
@@ -501,7 +501,7 @@ async fn b_unexpected_response_shape_is_fatal_not_retried() {
     let client =
         LlmClient::new(&with_retry(openai_config(&server.url()), 3)).expect("client builds");
 
-    let err = client.invoke(msg()).await.expect_err("must fail");
+    let err = client.invoke(&msg()).await.expect_err("must fail");
     assert!(
         matches!(err, LlmError::Provider(ProviderErrorType::Fatal, _)),
         "err: {err}"
@@ -526,7 +526,7 @@ async fn b_negative_max_tokens_fails_before_sending_any_request() {
     config.llm.generation.max_tokens = -1; // bypass ConfigLoader::validate on purpose
 
     let client = LlmClient::new(&config).expect("client builds");
-    let err = client.invoke(msg()).await.expect_err("must fail");
+    let err = client.invoke(&msg()).await.expect_err("must fail");
 
     assert!(matches!(err, LlmError::Build(_)), "err: {err}");
     assert!(
@@ -549,7 +549,7 @@ async fn c_timeout_cuts_slow_response_and_surfaces_bounded() {
 
     let client = LlmClient::new(&config).expect("client builds");
     let started = Instant::now();
-    let err = client.invoke(msg()).await.expect_err("must time out");
+    let err = client.invoke(&msg()).await.expect_err("must time out");
     let elapsed = started.elapsed();
 
     match err {
@@ -574,7 +574,7 @@ async fn c_timed_out_attempts_are_retried_then_exhausted() {
     config.resilience.timeout.timeout = Duration::from_millis(250);
 
     let client = LlmClient::new(&config).expect("client builds");
-    let err = client.invoke(msg()).await.expect_err("must exhaust");
+    let err = client.invoke(&msg()).await.expect_err("must exhaust");
 
     assert!(matches!(err, LlmError::RetryExhausted { .. }), "err: {err}");
     assert!(err.to_string().contains("attempt(s)"));
@@ -609,7 +609,10 @@ async fn c_transient_429_is_retried_until_success() {
 
     let client =
         LlmClient::new(&with_retry(openai_config(&server.url()), 2)).expect("client builds");
-    let text = client.invoke(msg()).await.expect("second attempt succeeds");
+    let text = client
+        .invoke(&msg())
+        .await
+        .expect("second attempt succeeds");
 
     assert_eq!(text, "feat: retry survived");
     assert_eq!(server.request_count(), 2);
@@ -630,7 +633,7 @@ async fn c_fatal_4xx_statuses_are_not_retried() {
         let client =
             LlmClient::new(&with_retry(openai_config(&server.url()), 3)).expect("client builds");
 
-        let err = client.invoke(msg()).await.expect_err("must fail");
+        let err = client.invoke(&msg()).await.expect_err("must fail");
         assert!(
             matches!(err, LlmError::Provider(ProviderErrorType::Fatal, _)),
             "{label}: {err}"
@@ -655,7 +658,7 @@ async fn c_persistent_failure_exhausts_retry_budget() {
     let client =
         LlmClient::new(&with_retry(openai_config(&server.url()), 2)).expect("client builds");
     let err = client
-        .invoke(msg())
+        .invoke(&msg())
         .await
         .expect_err("must fail eventually");
 
@@ -673,7 +676,7 @@ async fn c_retry_attempts_follow_resilience_config() {
     let zero_budget_server = MockServer::start(vec![], MockBehavior::Reset).await;
     let client_a =
         LlmClient::new(&with_retry(ollama_config(&zero_budget_server.url()), 0)).expect("builds");
-    let err = client_a.invoke(msg()).await.expect_err("must fail");
+    let err = client_a.invoke(&msg()).await.expect_err("must fail");
 
     assert!(
         matches!(err, LlmError::RetryExhausted { attempts: 1, .. }),
@@ -688,7 +691,7 @@ async fn c_retry_attempts_follow_resilience_config() {
     let two_budget_server = MockServer::start(vec![], MockBehavior::Reset).await;
     let client_b =
         LlmClient::new(&with_retry(ollama_config(&two_budget_server.url()), 2)).expect("builds");
-    let err = client_b.invoke(msg()).await.expect_err("must fail");
+    let err = client_b.invoke(&msg()).await.expect_err("must fail");
 
     assert!(
         matches!(err, LlmError::RetryExhausted { attempts: 3, .. }),
@@ -710,7 +713,7 @@ async fn c_bare_providers_do_not_retry_by_themselves() {
     let bare_server = MockServer::start(vec![], MockBehavior::Reset).await;
     let provider = build_provider(&ollama_config(&bare_server.url()).llm).expect("builds");
 
-    let message = msg();
+    let message = &msg();
     let err = provider
         .invoke_raw(&message)
         .await
@@ -730,7 +733,7 @@ async fn c_bare_providers_do_not_retry_by_themselves() {
     let client_server = MockServer::start(vec![], MockBehavior::Reset).await;
     let client =
         LlmClient::new(&with_retry(ollama_config(&client_server.url()), 2)).expect("builds");
-    let err = client.invoke(msg()).await.expect_err("must fail");
+    let err = client.invoke(&msg()).await.expect_err("must fail");
 
     assert!(matches!(err, LlmError::RetryExhausted { .. }), "err: {err}");
     assert_eq!(
@@ -752,7 +755,7 @@ async fn c_openai_adapter_has_built_in_transport_retries() {
     .await;
 
     let provider = build_provider(&openai_config(&server.url()).llm).expect("builds");
-    let message = msg();
+    let message = &msg();
     let err = provider.invoke_raw(&message).await.expect_err("must fail");
 
     assert!(
@@ -773,7 +776,7 @@ async fn c_ollama_connection_reset_surfaces_as_transient() {
     let server = MockServer::start(vec![], MockBehavior::Reset).await;
 
     let provider = build_provider(&ollama_config(&server.url()).llm).expect("builds");
-    let message = msg();
+    let message = &msg();
     let err = provider
         .invoke_raw(&message)
         .await
@@ -821,12 +824,12 @@ async fn d_openai_and_ollama_use_their_own_wire_shapes() {
 
     LlmClient::new(&openai_config(&openai_server.url()))
         .expect("builds")
-        .invoke(msg())
+        .invoke(&msg())
         .await
         .expect("succeeds");
     LlmClient::new(&ollama_config(&ollama_server.url()))
         .expect("builds")
-        .invoke(msg())
+        .invoke(&msg())
         .await
         .expect("succeeds");
 
@@ -865,7 +868,7 @@ async fn live_ollama_generates_text() {
 
     let text = LlmClient::new(&config)
         .expect("client builds")
-        .invoke(msg())
+        .invoke(&msg())
         .await
         .expect("live invoke succeeds");
     assert!(!text.trim().is_empty());
