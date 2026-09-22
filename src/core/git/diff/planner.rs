@@ -74,7 +74,10 @@ impl BudgetPlanner {
                 continue;
             }
 
-            let changed = file.insertions.unwrap_or(0) + file.deletions.unwrap_or(0);
+            let changed = file
+                .insertions
+                .unwrap_or(0)
+                .saturating_add(file.deletions.unwrap_or(0));
             if changed > 0 {
                 raw = raw
                     .saturating_add(policy.tokens_per_file_overhead)
