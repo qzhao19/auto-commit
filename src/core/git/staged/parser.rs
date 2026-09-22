@@ -75,9 +75,9 @@ pub fn parse_raw_entries(data: &[u8]) -> Result<Vec<RawEntry>, GitError> {
                 )
             }
             _ => {
-                let path = fields.next().ok_or_else(|| {
-                    GitError::new(GitErrorCode::Other, format!("truncated raw record"))
-                })?;
+                let path = fields
+                    .next()
+                    .ok_or_else(|| GitError::new(GitErrorCode::Other, "truncated raw record"))?;
                 (PathBuf::from(os_str(path)?), None)
             }
         };
