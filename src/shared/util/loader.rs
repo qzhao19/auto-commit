@@ -68,7 +68,7 @@ pub fn resolve_default_config_path() -> Option<PathBuf> {
 
 pub fn validate(config: &AppConfig) -> Result<(), ConfigError> {
     let p = &config.llm.provider;
-    if p.model.is_empty() {
+    if p.model.trim().is_empty() {
         return Err(ConfigError::MissingRequired {
             field: "llm.model",
             hint: "set `model` in ~/.config/autocommit/config.toml or export AUTOCOMMIT_LLM_MODEL"
