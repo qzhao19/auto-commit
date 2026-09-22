@@ -260,7 +260,7 @@ pub fn summarize_lock_diff(diff: &str, capacity: u64) -> String {
         }
 
         if content == NO_NEWLINE_MARKER {
-            if last_kept_was_changed && !truncating {
+            if last_kept_was_changed && pending_context.is_none() && !truncating {
                 kept.push_str(line);
             }
             continue;
