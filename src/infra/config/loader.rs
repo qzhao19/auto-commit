@@ -23,7 +23,9 @@ impl ConfigLoader {
         Self {
             cli_args: CliArgs::parse(),
             file_path: resolve_default_config_path(),
-            env_vars: std::env::vars().collect(),
+            env_vars: std::env::vars_os()
+                .filter_map(|(k, v)| Some((k.into_string().ok()?, v.into_string().ok()?)))
+                .collect(),
         }
     }
 
