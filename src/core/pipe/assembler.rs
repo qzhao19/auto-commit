@@ -138,7 +138,7 @@ fn append_seed_message(
 }
 
 fn append_change_summary(out: &mut String, snapshot: &ClassifiedSnapshot) {
-    let stats = SemanticTextStats::from_snapshot(&snapshot);
+    let stats = SemanticTextStats::from_snapshot(snapshot);
     let lock_count = snapshot
         .files()
         .iter()
