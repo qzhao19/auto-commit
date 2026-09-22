@@ -71,7 +71,7 @@ async fn run() -> Result<(), AppError> {
 
     // 4. LLM build the client from config
     let client = LlmClient::new(&config).map_err(AppError::Llm)?;
-    let raw = client.invoke(prompt.clone()).await.map_err(AppError::Llm)?;
+    let raw = client.invoke(&prompt).await.map_err(AppError::Llm)?;
     let first_candidate = validate_and_normalize(&raw)
         .map(|msg| msg.into_string())
         .map_err(|err| AppError::Llm(invalid_message(err)))?;
@@ -101,7 +101,7 @@ async fn run() -> Result<(), AppError> {
             if let Some(cached) = cached {
                 return Ok(cached);
             }
-            let raw = client_ref.invoke(prompt_ref.clone()).await?;
+            let raw = client_ref.invoke(&prompt_ref).await?;
             validate_and_normalize(&raw)
                 .map(|msg| msg.into_string())
                 .map_err(invalid_message)
@@ -110,7 +110,9 @@ async fn run() -> Result<(), AppError> {
 
     let _raw = RawModeGuard::enter()
         .map_err(|err| AppError::Io(format!("failed to enable raw terminal mode: {err}")))?;
-    let (stop_keys, key_rx) = KeyListener::spawn().into_parts();
+    let (stop_keys, key_rx) = KeyListener::spawn()
+        .map_err(|err| AppError::Io(format!("failed to spawn key listener: {err}")))?
+        .into_parts();
     let ui = TerminalUi::new(repo);
 
     let decision = InteractiveLoop::new(generate, key_rx, ui)
