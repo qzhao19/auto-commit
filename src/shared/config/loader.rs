@@ -9,6 +9,7 @@ use super::resilience::PartialResilienceConfig;
 #[derive(Parser, Debug, Clone, Default)]
 #[command(
     name = "auto-commit",
+    version,
     about = "Generate descriptive commit messages via LLM"
 )]
 pub struct CliArgs {
