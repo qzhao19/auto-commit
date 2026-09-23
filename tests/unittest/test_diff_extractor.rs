@@ -331,6 +331,32 @@ fn summarize_lock_diff_caps_and_reports_remainder() {
     assert!(out.contains("... [4 more dependency lines truncated]\n"));
 }
 
+// A hunk boundary must invalidate the context line buffered from the
+// previous hunk: hunk B's first signal line can never be paired with
+// hunk A's trailing context. The reset happens in the catch-all branch
+// that also swallows index/mode/---/+++ metadata.
+#[test]
+fn summarize_lock_diff_drops_context_across_hunk_boundary() {
+    let diff = concat!(
+        "diff --git a/Cargo.lock b/Cargo.lock\n",
+        "index 1111111..2222222 100644\n",
+        "--- a/Cargo.lock\n",
+        "+++ b/Cargo.lock\n",
+        "@@ -10,3 +10,4 @@\n",
+        "-version = \"1.0.80\"\n",
+        " name = \"anyhow\"\n",
+        "@@ -99,1 +99,2 @@\n",
+        "+version = \"1.0.86\"\n",
+    );
+
+    let out = summarize_lock_diff(diff, 64);
+
+    assert!(out.contains("-version = \"1.0.80\"\n"));
+    assert!(out.contains("+version = \"1.0.86\"\n"));
+    // `name` from hunk A must not be paired with hunk B's signal.
+    assert!(!out.contains("anyhow"));
+}
+
 #[tokio::test]
 async fn lock_only_commit_produces_digest_in_body() {
     let dir = TempDir::new("extractor_lock_only").unwrap();
