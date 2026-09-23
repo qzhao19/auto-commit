@@ -99,7 +99,7 @@ async fn phase_a_resolves_lock_and_generated_without_git() {
     let result = classifier
         .classify(&snapshot_of(vec![
             staged("Cargo.lock", ChangeType::Modified),
-            staged("src/gen/widget.rs", ChangeType::Added),
+            staged("src/generated/widget.rs", ChangeType::Added),
             staged("api/user.pb.go", ChangeType::Added),
         ]))
         .await
@@ -110,7 +110,7 @@ async fn phase_a_resolves_lock_and_generated_without_git() {
         FileCategory::DependencyLock
     );
     assert_eq!(
-        category_of(&result, "src/gen/widget.rs"),
+        category_of(&result, "src/generated/widget.rs"),
         FileCategory::Generated
     );
     assert_eq!(
