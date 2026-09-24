@@ -30,53 +30,95 @@ impl<'a> OperationStateDetector<'a> {
         let paths = &ctx.git_paths;
 
         // 1.1 Bisect → hard abort.
-        if Self::path_exists(&paths.bisect_log)? {
+        if Self::path_exists(&paths.bisect_log).await? {
             return Ok(OperationState::Bisect);
         }
 
-        let in_progress = self.probe_active_operation(paths).await?;
-
         if self.has_unmerged_entries().await? {
-            return Ok(OperationState::Conflicts {
-                context: in_progress.as_ref().and_then(OperationState::kind),
-            });
+            let context = self
+                .probe_active_operation(paths)
+                .await
+                .ok()
+                .flatten()
+                .as_ref()
+                .and_then(OperationState::kind);
+            return Ok(OperationState::Conflicts { context });
         }
 
+        let in_progress = self.probe_active_operation(paths).await?;
         Ok(in_progress.unwrap_or(OperationState::Clean))
     }
+
+    // async fn probe_active_operation(
+    //     &self,
+    //     paths: &GitPaths,
+    // ) -> Result<Option<OperationState>, GitError> {
+    //     // 1.2 Rebase
+    //     if Self::path_exists(&paths.rebase_merge).await?
+    //         || Self::path_exists(&paths.rebase_apply).await?
+    //     {
+    //         let message = self.read_rebase_seed(paths).await?;
+    //         return Ok(Some(OperationState::Rebase { message }));
+    //     }
+    //     // 1.3 Merge HEAD
+    //     if Self::path_exists(&paths.merge_head).await? {
+    //         let message = Self::read_msg_file(&paths.merge_msg).await?;
+    //         return Ok(Some(OperationState::Merge { message }));
+    //     }
+    //     // 1.4 Squash: SQUASH_MSG without MERGE_HEAD
+    //     if Self::path_exists(&paths.squash_msg).await? {
+    //         let message = Self::read_msg_file(&paths.squash_msg).await?;
+    //         return Ok(Some(OperationState::Squash { message }));
+    //     }
+    //     // 1.5 Cherry-pick
+    //     if Self::path_exists(&paths.cherry_pick_head).await? {
+    //         let head = Self::read_head_oid(&paths.cherry_pick_head).await?;
+    //         let subject = self.head_subject(&head).await?;
+    //         return Ok(Some(OperationState::CherryPick { head, subject }));
+    //     }
+    //     // Revert
+    //     if Self::path_exists(&paths.revert_head).await? {
+    //         let head = Self::read_head_oid(&paths.revert_head).await?;
+    //         let subject = self.head_subject(&head).await?;
+    //         return Ok(Some(OperationState::Revert { head, subject }));
+    //     }
+    //     Ok(None)
+    // }
 
     async fn probe_active_operation(
         &self,
         paths: &GitPaths,
     ) -> Result<Option<OperationState>, GitError> {
-        // 1.2 Rebase
-        if Self::path_exists(&paths.rebase_merge)? || Self::path_exists(&paths.rebase_apply)? {
+        // Marker existence checks are independent and all must succeed 
+        // rebase > merge > squash > cherry-pick > revert
+        let (rebase_merge, rebase_apply, merge_head, squash_msg, cherry_pick_head, revert_head) = tokio::try_join!(
+            Self::path_exists(&paths.rebase_merge),
+            Self::path_exists(&paths.rebase_apply),
+            Self::path_exists(&paths.merge_head),
+            Self::path_exists(&paths.squash_msg),
+            Self::path_exists(&paths.cherry_pick_head),
+            Self::path_exists(&paths.revert_head),
+        )?;
+
+        if rebase_merge || rebase_apply {
             let message = self.read_rebase_seed(paths).await?;
             return Ok(Some(OperationState::Rebase { message }));
         }
-
-        // 1.3 Merge HEAD
-        if Self::path_exists(&paths.merge_head)? {
-            let message = Self::read_msg_file(&paths.merge_msg)?;
+        if merge_head {
+            let message = Self::read_msg_file(&paths.merge_msg).await?;
             return Ok(Some(OperationState::Merge { message }));
         }
-
-        // 1.4 Squash: SQUASH_MSG without MERGE_HEAD
-        if Self::path_exists(&paths.squash_msg)? {
-            let message = Self::read_msg_file(&paths.squash_msg)?;
+        if squash_msg {
+            let message = Self::read_msg_file(&paths.squash_msg).await?;
             return Ok(Some(OperationState::Squash { message }));
         }
-
-        // 1.5 Cherry-pick
-        if Self::path_exists(&paths.cherry_pick_head)? {
-            let head = Self::read_head_oid(&paths.cherry_pick_head)?;
+        if cherry_pick_head {
+            let head = Self::read_head_oid(&paths.cherry_pick_head).await?;
             let subject = self.head_subject(&head).await?;
             return Ok(Some(OperationState::CherryPick { head, subject }));
         }
-
-        // Revert
-        if Self::path_exists(&paths.revert_head)? {
-            let head = Self::read_head_oid(&paths.revert_head)?;
+        if revert_head {
+            let head = Self::read_head_oid(&paths.revert_head).await?;
             let subject = self.head_subject(&head).await?;
             return Ok(Some(OperationState::Revert { head, subject }));
         }
@@ -93,12 +135,12 @@ impl<'a> OperationStateDetector<'a> {
     async fn read_rebase_seed(&self, paths: &GitPaths) -> Result<Option<String>, GitError> {
         let msg_path = paths.rebase_merge.join("message");
 
-        if let Some(msg) = Self::read_msg_file(&msg_path)? {
+        if let Some(msg) = Self::read_msg_file(&msg_path).await? {
             return Ok(Some(msg));
         }
 
-        if Self::path_exists(&paths.rebase_head)? {
-            let head = Self::read_head_oid(&paths.rebase_head)?;
+        if Self::path_exists(&paths.rebase_head).await? {
+            let head = Self::read_head_oid(&paths.rebase_head).await?;
             return self.head_subject(&head).await;
         }
 
@@ -106,11 +148,14 @@ impl<'a> OperationStateDetector<'a> {
     }
 
     async fn head_subject(&self, head: &str) -> Result<Option<String>, GitError> {
-        let result = self
+        let subject = match self
             .runner
             .run(&["log", "-1", "--format=%s", head], None)
-            .await?;
-        let subject = result.stdout_str().trim().to_owned();
+            .await
+        {
+            Ok(result) => result.stdout_str().trim().to_owned(),
+            Err(_) => String::new(),
+        };
 
         Ok(if subject.is_empty() {
             None
@@ -121,14 +166,15 @@ impl<'a> OperationStateDetector<'a> {
 
     // Helper function
 
-    fn read_msg_file(path: &Path) -> Result<Option<String>, GitError> {
-        let content = match std::fs::read_to_string(path) {
+    async fn read_msg_file(path: &Path) -> Result<Option<String>, GitError> {
+        let content = match tokio::fs::read_to_string(path).await {
             Ok(content) => content,
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
             Err(err) => {
-                return Err(GitError::new(
+                return Err(GitError::with_source(
                     GitErrorCode::Other,
                     format!("failed to read {}: {err}", path.display()),
+                    err,
                 ));
             }
         };
@@ -144,12 +190,14 @@ impl<'a> OperationStateDetector<'a> {
         Ok(if msg.is_empty() { None } else { Some(msg) })
     }
 
-    fn read_head_oid(path: &Path) -> Result<String, GitError> {
-        let oid = std::fs::read_to_string(path)
+    async fn read_head_oid(path: &Path) -> Result<String, GitError> {
+        let oid = tokio::fs::read_to_string(path)
+            .await
             .map_err(|err| {
-                GitError::new(
+                GitError::with_source(
                     GitErrorCode::Other,
                     format!("failed to read {}: {err}", path.display()),
+                    err,
                 )
             })?
             .trim()
@@ -165,11 +213,12 @@ impl<'a> OperationStateDetector<'a> {
         Ok(oid)
     }
 
-    fn path_exists(path: &Path) -> Result<bool, GitError> {
-        path.try_exists().map_err(|err| {
-            GitError::new(
+    async fn path_exists(path: &Path) -> Result<bool, GitError> {
+        tokio::fs::try_exists(path).await.map_err(|err| {
+            GitError::with_source(
                 GitErrorCode::Other,
                 format!("failed to inspect {}: {err}", path.display()),
+                err,
             )
         })
     }
