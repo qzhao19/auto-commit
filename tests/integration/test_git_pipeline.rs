@@ -861,6 +861,36 @@ async fn b6_cherry_pick_template() {
     }
 }
 
+/// B6b (deliberate hard-fail): with NO unmerged entries, a present but
+/// empty CHERRY_PICK_HEAD aborts stage 1 instead of classifying Clean —
+/// an undeterminable mid-operation state must not be committed on top
+/// of (git would treat the commit as concluding the pick).
+#[tokio::test]
+async fn b6b_empty_marker_without_conflicts_fails_loudly() {
+    let tmp = TempRepo::new("b6b");
+    let repo = tmp.path();
+    init_rust_repo(repo);
+    write(
+        &repo.join("src/lib.rs"),
+        "pub fn seed() -> u32 {\n    1\n}\n",
+    );
+    git_add(repo, &["src/lib.rs"]);
+    git(repo, &["commit", "-m", "chore: seed"]);
+    // Hand-write the damaged marker: no real pick, clean index.
+    write(&repo.join(".git/CHERRY_PICK_HEAD"), "");
+
+    let runner = runner_at(repo);
+    let ctx = RepoPreflightCollector::new(&runner).run().await.unwrap();
+    let err = OperationStateDetector::new(&runner)
+        .run(&ctx)
+        .await
+        .unwrap_err();
+    assert!(
+        err.to_string().contains("present but empty"),
+        "unexpected: {err}"
+    );
+}
+
 #[tokio::test]
 async fn b7_revert_template() {
     // revert --no-commit → TEMPLATE with `Revert "<subject>"` seed.
@@ -1023,6 +1053,87 @@ async fn b9b_conflict_without_owner() {
         err.to_string(),
         "[other] unresolved conflicts; resolve them before committing"
     );
+}
+
+/// B9c: a conflicted cherry-pick whose CHERRY_PICK_HEAD is unusable
+/// (truncated by a crash mid-write) must still classify as Conflicts —
+/// the unmerged index is ground truth; the probe failure only costs the
+/// owning-operation context.
+#[tokio::test]
+async fn b9c_conflicted_pick_with_damaged_marker_reports_conflicts() {
+    let tmp = TempRepo::new("b9c");
+    let repo = tmp.path();
+    init_rust_repo(repo);
+    git(repo, &["switch", "-c", "side"]);
+    write(
+        &repo.join("src/lib.rs"),
+        "pub fn seed() -> u32 {\n    SIDE_VALUE\n}\n",
+    );
+    git_add(repo, &["src/lib.rs"]);
+    git(repo, &["commit", "-m", "feat: side change"]);
+    let oid = git(repo, &["rev-parse", "HEAD"]).trim().to_string();
+    git(repo, &["switch", "trunk"]);
+    write(
+        &repo.join("src/lib.rs"),
+        "pub fn seed() -> u32 {\n    TRUNK_VALUE\n}\n",
+    );
+    git_add(repo, &["src/lib.rs"]);
+    git(repo, &["commit", "-m", "feat: trunk change"]);
+    git_fails(repo, &["cherry-pick", &oid]);
+
+    // Damage the marker as a crash mid-write would: present but empty.
+    write(&repo.join(".git/CHERRY_PICK_HEAD"), "");
+
+    let state = detect(repo).await; // must NOT unwrap_err anymore
+    match &state {
+        OperationState::Conflicts { context: None } => {}
+        other => panic!("expected conflicts with degraded context, got {other:?}"),
+    }
+
+    let err = run_pipeline(repo, BudgetPolicy::default())
+        .await
+        .unwrap_err();
+    assert!(
+        err.to_string().contains("unresolved conflicts"),
+        "unexpected: {err}"
+    );
+}
+
+/// B9d: garbage in CHERRY_PICK_HEAD (damaged but non-empty) — the
+/// marker's presence still identifies the owning operation; the
+/// unresolvable OID only costs the seed subject.
+#[tokio::test]
+async fn b9d_conflicted_pick_with_garbage_oid_keeps_context() {
+    let tmp = TempRepo::new("b9c");
+    let repo = tmp.path();
+    init_rust_repo(repo);
+    git(repo, &["switch", "-c", "side"]);
+    write(
+        &repo.join("src/lib.rs"),
+        "pub fn seed() -> u32 {\n    SIDE_VALUE\n}\n",
+    );
+    git_add(repo, &["src/lib.rs"]);
+    git(repo, &["commit", "-m", "feat: side change"]);
+    let oid = git(repo, &["rev-parse", "HEAD"]).trim().to_string();
+    git(repo, &["switch", "trunk"]);
+    write(
+        &repo.join("src/lib.rs"),
+        "pub fn seed() -> u32 {\n    TRUNK_VALUE\n}\n",
+    );
+    git_add(repo, &["src/lib.rs"]);
+    git(repo, &["commit", "-m", "feat: trunk change"]);
+    git_fails(repo, &["cherry-pick", &oid]);
+
+    // `git_fails(repo, &["cherry-pick", &oid])`
+    write(&repo.join(".git/CHERRY_PICK_HEAD"), "not-an-oid\n");
+
+    let state = detect(repo).await;
+    match &state {
+        OperationState::Conflicts {
+            context: Some(Operation::CherryPick),
+        } => {}
+        other => panic!("expected cherry-pick conflicts, got {other:?}"),
+    }
 }
 
 #[tokio::test]
