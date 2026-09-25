@@ -5,4 +5,4 @@ pub use collector::StagedMetadataCollector;
 
 // Parser internals exposed for unit tests only
 #[cfg(test)]
-pub(crate) use parser::{RawEntry, parse_numstat, parse_raw_entries};
+pub(crate) use parser::{RawEntry, parse_numstat, parse_raw_entries, split_raw_and_numstat};
