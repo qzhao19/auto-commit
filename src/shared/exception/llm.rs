@@ -43,3 +43,14 @@ impl fmt::Display for LlmError {
         }
     }
 }
+
+impl std::error::Error for LlmError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::RetryExhausted { last, .. } => {
+                Some(last.as_ref() as &(dyn std::error::Error + 'static))
+            }
+            Self::Build(_) | Self::Timeout(_) | Self::Provider(..) => None,
+        }
+    }
+}
