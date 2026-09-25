@@ -250,6 +250,63 @@ fn parse_numstat_counts(ins_col: &[u8], del_col: &[u8]) -> Result<NumstatRow, Gi
     })
 }
 
+/// Split the output of `git diff --cached --raw --numstat -z -M -C` into raw block and numstat block
+/// [ raw record ... ][ numstat record ... ]
+/// raw:     :mode mode sha sha status\0path\0
+///      or  :mode mode sha sha R/Cscore\0old\0new\0
+
+/// numstat: ins\t<del>\t<path>\0
+///      or  -\t-\t<path>\0
+///      or  ins\t<del>\t\0old\0new\0
+pub fn split_raw_and_numstat(data: &[u8]) -> Result<(&[u8], &[u8]), GitError> {
+    let mut pos = 0;
+    while pos < data.len() {
+        let meta_end_pos = find_null_offset(data, pos)?;
+        let meta = &data[pos..meta_end_pos];
+
+        if meta.first() != Some(&b':') {
+            // First field that cannot start a raw record → numstat block
+            return Ok((&data[..pos], &data[pos..]));
+        }
+
+        let mut cursor = meta_end_pos + 1;
+        for _ in 0..raw_record_path_count(meta) {
+            cursor = find_null_offset(data, cursor)? + 1;
+        }
+
+        pos = cursor;
+    }
+
+    Ok((data, &[]))
+}
+
+/// `:<srcmode> <dstmode> <srcsha> <dstsha> <status>` is followed by one path
+/// field, or two for rename/copy (`R<score>` / `C<score>`)
+fn raw_record_path_count(meta: &[u8]) -> usize {
+    match meta
+        .iter()
+        .rposition(|&b| b == b' ')
+        .and_then(|i| meta.get(i + 1))
+    {
+        Some(b'R') | Some(b'C') => 2,
+        _ => 1,
+    }
+}
+
+/// Find the index of the next NUL (`\0`) starting from the `from` position
+fn find_null_offset(data: &[u8], from: usize) -> Result<usize, GitError> {
+    data[from..]
+        .iter()
+        .position(|&b| b == 0)
+        .map(|offset| from + offset)
+        .ok_or_else(|| {
+            GitError::new(
+                GitErrorCode::Other,
+                "truncated NUL-terminated record".to_string(),
+            )
+        })
+}
+
 // Helper function
 
 fn split_nul(data: &[u8]) -> Vec<&[u8]> {
