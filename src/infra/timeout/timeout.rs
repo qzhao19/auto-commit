@@ -2,6 +2,7 @@ use std::future::Future;
 
 use crate::shared::config::TimeoutConfig;
 
+#[derive(Debug, Clone)]
 pub struct Timeout {
     config: TimeoutConfig,
 }
