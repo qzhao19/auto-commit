@@ -1524,3 +1524,37 @@ async fn c9_lock_digest_empty_when_no_signal() {
     assert_eq!(payload.file_count, 0);
     assert_eq!(payload.truncated_file_count, 0);
 }
+
+#[tokio::test]
+async fn c10_header_only_semantic_files_are_billed() {
+    // Real-pipeline pin of the closed estimation gap: an empty-file add and
+    // a mode-only modification are SemanticText with zero changed lines; each
+    // still renders a header, so each bills tokens_per_file_overhead.
+    let tmp = TempRepo::new("c10");
+    let repo = tmp.path();
+
+    // init_rust_repo already commits src/lib.rs (mode 100644) — no re-seed:
+    // the committed file IS the mode-only M fixture.
+    init_rust_repo(repo);
+    write(&repo.join("src/__init__.py"), ""); // empty add → A with 0/0
+    git_add(repo, &["src/__init__.py"]);
+    git(&repo, &["update-index", "--chmod=+x", "src/lib.rs"]); // mode-only M 0/0
+
+    let (snapshot, decision, payload) =
+        staging(run_pipeline(repo, BudgetPolicy::default()).await.unwrap());
+
+    assert_eq!(snapshot.files().len(), 2);
+    assert_eq!(decision.strategy, DiffStrategy::Full);
+    // 2 header-only files × 48 overhead × 1.3 safety = 124 (integer floor).
+    assert_eq!(decision.estimated_diff_tokens, 124);
+    assert!(
+        payload.body.contains("diff --git a/src/__init__.py"),
+        "body: {}",
+        payload.body
+    );
+    assert!(
+        payload.body.contains("old mode 100644"),
+        "body: {}",
+        payload.body
+    );
+}

@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::core::git::staged::{
-    RawEntry, StagedMetadataCollector, parse_numstat, parse_raw_entries,
+    RawEntry, StagedMetadataCollector, parse_numstat, parse_raw_entries, split_raw_and_numstat,
 };
 use crate::core::git::types::{ChangeType, FileCategory, StagedFile, StagedSnapshot};
 use crate::infra::git::GitRunner;
@@ -541,4 +541,59 @@ async fn empty_staging_yields_empty_snapshot() {
         .unwrap();
 
     assert!(snapshot.files.is_empty());
+}
+
+//  parser: combined --raw --numstat splitting
+
+#[test]
+fn combined_split_recovers_both_streams() {
+    // Layout pinned by diff.c's diff_flush(): the raw block is emitted
+    // first, then the numstat block; rename/copy raw records carry two
+    // path fields, numstat rename/copy records carry an empty third
+    // column plus two path fields.
+    let raw = b":100644 100644 aaa bbb A\0new.txt\0:100644 100644 aaa bbb R090\0old.rs\0new.rs\0";
+    let numstat = b"5\t2\tnew.txt\03\t1\t\0old.rs\0new.rs\0";
+    let combined = [raw.as_slice(), numstat].concat();
+
+    let (raw_block, numstat_block) = split_raw_and_numstat(&combined).unwrap();
+    assert_eq!(raw_block, raw);
+    assert_eq!(numstat_block, numstat);
+
+    let entries = parse_raw_entries(raw_block).unwrap();
+    let rows = parse_numstat(numstat_block, &entries).unwrap();
+
+    assert_eq!(entries.len(), 2);
+    assert_eq!(entries[1].change_type, ChangeType::Renamed);
+    assert_eq!(rows[0].insertions, Some(5));
+    assert_eq!(rows[0].deletions, Some(2));
+    assert_eq!(rows[1].insertions, Some(3));
+    assert!(!rows[1].is_binary);
+}
+
+#[test]
+fn combined_split_empty_output() {
+    let (raw, numstat) = split_raw_and_numstat(b"").unwrap();
+    assert!(parse_raw_entries(raw).unwrap().is_empty());
+    assert!(parse_numstat(numstat, &[]).unwrap().is_empty());
+}
+
+#[test]
+fn combined_split_flags_numstat_first_layout() {
+    // If a future git flips diff_flush's block order, the failure must be
+    // loud inside the parsers — never a silent cross-format pairing.
+    let flipped = b"5\t2\tnew.txt\0:100644 100644 aaa bbb M\0new.txt\0";
+
+    let (raw, numstat) = split_raw_and_numstat(flipped).unwrap();
+    let entries = parse_raw_entries(raw).unwrap();
+    assert!(entries.is_empty());
+    assert!(
+        parse_numstat(numstat, &entries).is_err(),
+        "numstat-first layout must end in a loud parser error"
+    );
+}
+
+#[test]
+fn combined_split_truncated_record_errors() {
+    let truncated = b":100644 100644 aaa bbb A\0new.txt"; // missing tail NUL
+    assert!(split_raw_and_numstat(truncated).is_err());
 }

@@ -291,7 +291,7 @@ fn renamed_with_content_is_charged_as_content() {
 }
 
 #[test]
-fn zero_churn_type_change_costs_nothing() {
+fn zero_churn_header_only_file_costs_overhead() {
     // Current behavior snapshot: zero-churn non-rename entries are free
     // (the known estimation gap — update this test when they get a cost).
     let files = vec![file(
@@ -305,7 +305,7 @@ fn zero_churn_type_change_costs_nothing() {
     let decision = BudgetPlanner::new(policy()).plan(&snapshot(files));
 
     assert_eq!(decision.strategy, DiffStrategy::Full);
-    assert_eq!(decision.estimated_diff_tokens, 0);
+    assert_eq!(decision.estimated_diff_tokens, 10);
 }
 
 #[test]
@@ -333,4 +333,75 @@ fn from_files_rejects_unknown_category() {
 
     assert_eq!(err.code, GitErrorCode::Other);
     assert!(err.message.contains("a.rs"));
+}
+
+#[test]
+fn copied_zero_churn_is_charged_as_rename_only() {
+    // C100 emits the same similarity/copy-from/copy-to header shape as a
+    // pure rename, so it bills at tokens_per_rename_only, not overhead.
+    let files = vec![file(
+        "copy.rs",
+        ChangeType::Copied,
+        Some(0),
+        Some(0),
+        FileCategory::SemanticText,
+    )];
+
+    let decision = BudgetPlanner::new(policy()).plan(&snapshot(files));
+
+    assert_eq!(decision.strategy, DiffStrategy::Full);
+    assert_eq!(decision.estimated_diff_tokens, 20);
+}
+
+#[test]
+fn empty_file_add_and_delete_bill_header_overhead() {
+    let files = vec![
+        file(
+            "empty.py",
+            ChangeType::Added,
+            Some(0),
+            Some(0),
+            FileCategory::SemanticText,
+        ),
+        file(
+            "gone.txt",
+            ChangeType::Deleted,
+            Some(0),
+            Some(0),
+            FileCategory::SemanticText,
+        ),
+    ];
+
+    let decision = BudgetPlanner::new(policy()).plan(&snapshot(files));
+
+    assert_eq!(decision.strategy, DiffStrategy::Full);
+    assert_eq!(decision.estimated_diff_tokens, 20); // 2 × overhead 10
+}
+
+#[test]
+fn many_header_only_files_overflow_to_sample_hunks() {
+    // 901 header-only files × 10 = 9_010 > 9_000 available: the estimate
+    // must see them. Pre-fix they were invisible and this went Full.
+    let files: Vec<StagedFile> = (0..901)
+        .map(|i| {
+            file(
+                &format!("e{i}.py"),
+                ChangeType::Added,
+                Some(0),
+                Some(0),
+                FileCategory::SemanticText,
+            )
+        })
+        .collect();
+
+    let decision = BudgetPlanner::new(policy()).plan(&snapshot(files));
+
+    assert_eq!(
+        decision.strategy,
+        DiffStrategy::SampleHunks {
+            max_hunks_per_file: 4,
+            max_changed_lines_per_file: 100
+        }
+    );
+    assert_eq!(decision.estimated_diff_tokens, 9_010);
 }
