@@ -2,7 +2,7 @@ use crate::core::git::types::{FileCategory, StagedFile, StagedSnapshot};
 use crate::infra::git::GitRunner;
 use crate::shared::exception::GitError;
 
-use super::parser::{parse_numstat, parse_raw_entries};
+use super::parser::{parse_numstat, parse_raw_entries, split_raw_and_numstat};
 
 /// Collects decision-level metadata of the staged area
 ///
@@ -21,13 +21,14 @@ impl<'a> StagedMetadataCollector<'a> {
     }
 
     pub async fn collect(&self) -> Result<StagedSnapshot, GitError> {
-        let (raw, numstat) = tokio::try_join!(self.run_diff("--raw"), self.run_diff("--numstat"))?;
+        let data = self.run_diff().await?;
+        let (raw, numstat) = split_raw_and_numstat(&data)?;
         let files = Self::merge(raw, numstat)?;
 
         Ok(StagedSnapshot { files })
     }
 
-    async fn run_diff(&self, format: &str) -> Result<Vec<u8>, GitError> {
+    async fn run_diff(&self) -> Result<Vec<u8>, GitError> {
         let result = self
             .runner
             .run(
@@ -37,7 +38,8 @@ impl<'a> StagedMetadataCollector<'a> {
                     "--no-color",
                     "--no-ext-diff",
                     "--no-textconv",
-                    format,
+                    "--raw",
+                    "--numstat",
                     "-z",
                     "-M",
                     "-C",
@@ -49,9 +51,9 @@ impl<'a> StagedMetadataCollector<'a> {
         Ok(result.stdout)
     }
 
-    fn merge(raw: Vec<u8>, numstat: Vec<u8>) -> Result<Vec<StagedFile>, GitError> {
-        let entries = parse_raw_entries(&raw)?;
-        let stats = parse_numstat(&numstat, &entries)?;
+    fn merge(raw: &[u8], numstat: &[u8]) -> Result<Vec<StagedFile>, GitError> {
+        let entries = parse_raw_entries(raw)?;
+        let stats = parse_numstat(numstat, &entries)?;
 
         let mut files = Vec::with_capacity(entries.len());
 
