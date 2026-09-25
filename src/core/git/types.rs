@@ -300,14 +300,23 @@ impl SemanticTextStats {
 
             stats.semantic_file_count += 1;
 
+            debug_assert!(
+                file.insertions.is_some() && file.deletions.is_some(),
+                "SemanticText file {} has no line counts",
+                file.path.display()
+            );
+
             let insertions = file.insertions.unwrap_or(0);
             let deletions = file.deletions.unwrap_or(0);
             let changed_lines = insertions + deletions;
 
             if changed_lines > 0 {
                 stats.content_changed_file_count += 1;
-            } else if file.change_type == ChangeType::Renamed {
+            // } else if file.change_type == ChangeType::Renamed {
+            } else if matches!(file.change_type, ChangeType::Renamed | ChangeType::Copied) {
                 stats.rename_only_file_count += 1;
+            } else {
+                stats.content_changed_file_count += 1;
             }
 
             stats.total_insertions += insertions;
@@ -350,8 +359,8 @@ pub struct BudgetPolicy {
     pub max_hunks_per_file: u32,
 }
 
-impl BudgetPolicy {
-    pub fn default() -> Self {
+impl Default for BudgetPolicy {
+    fn default() -> Self {
         Self {
             context_token_limit: 128_000,
             reserved_tokens: 2_000,
@@ -367,7 +376,9 @@ impl BudgetPolicy {
             max_hunks_per_file: 8,
         }
     }
+}
 
+impl BudgetPolicy {
     pub fn available_for_diff(&self) -> u64 {
         self.context_token_limit
             .saturating_sub(self.reserved_tokens)

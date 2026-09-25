@@ -86,8 +86,10 @@ impl BudgetPlanner {
                             .min(capacity)
                             .saturating_mul(policy.tokens_per_changed_line),
                     );
-            } else if file.change_type == ChangeType::Renamed {
+            } else if matches!(file.change_type, ChangeType::Renamed | ChangeType::Copied) {
                 raw = raw.saturating_add(policy.tokens_per_rename_only);
+            } else {
+                raw = raw.saturating_add(policy.tokens_per_file_overhead);
             }
         }
         raw.saturating_mul(u64::from(policy.safety_factor_bps)) / 10_000
