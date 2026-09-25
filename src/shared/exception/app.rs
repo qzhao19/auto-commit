@@ -35,3 +35,14 @@ impl fmt::Display for AppError {
         }
     }
 }
+
+impl std::error::Error for AppError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Config(err) => Some(err as &(dyn std::error::Error + 'static)),
+            Self::Pipeline(err) => Some(err as &(dyn std::error::Error + 'static)),
+            Self::Llm(err) => Some(err as &(dyn std::error::Error + 'static)),
+            Self::Io(_) | Self::Commit(_) => None,
+        }
+    }
+}
