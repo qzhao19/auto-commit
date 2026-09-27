@@ -257,9 +257,17 @@ impl<'a> RepoPreflightCollector<'a> {
             return Ok(path);
         }
 
-        let cwd = self.runner.cwd();
-
-        Ok(cwd.join(path))
+        if path.is_absolute() {
+            Ok(path)
+        } else {
+            Err(GitError::new(
+                GitErrorCode::CommandFailed,
+                format!(
+                    "git rev-parse --absolute-git-dir returned non-absolute path \
+                    {git_dir_raw:?}, which violates its output contract"
+                ),
+            ))
+        }
     }
 
     async fn is_worktree_dirty(&self) -> Result<bool, GitError> {
