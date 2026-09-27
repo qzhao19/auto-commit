@@ -25,6 +25,7 @@ impl GitRunner {
         Self { default_cwd }
     }
 
+    #[allow(dead_code)]
     pub fn cwd(&self) -> &Path {
         self.default_cwd.as_path()
     }
