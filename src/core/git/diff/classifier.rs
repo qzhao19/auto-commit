@@ -83,7 +83,7 @@ impl<'a> FileClassifier<'a> {
 
     fn blob_spec(file: &StagedFile) -> Option<String> {
         let path = file.path.to_str()?;
-        if path.contains('\n') {
+        if path.contains('\n') || path.contains('\0') {
             return None;
         }
         Some(match file.change_type {
