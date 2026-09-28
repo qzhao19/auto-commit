@@ -1,9 +1,13 @@
+use std::sync::atomic::{AtomicU32, Ordering};
+
 use crate::infra::retry::{Retry, RetryResult};
 use crate::infra::timeout::Timeout;
 use crate::shared::config::{AppConfig, LlmMessage};
 use crate::shared::exception::LlmError;
 
 use super::{Provider, build_provider};
+
+const MAX_TIMEOUT_ATTEMPTS: u32 = 3;
 
 /// High-level LLM call entry.
 ///
@@ -30,11 +34,18 @@ impl LlmClient {
 
     /// Generate a commit message, apply retries + single attempt timeout
     pub async fn invoke(&self, message: &LlmMessage) -> Result<String, LlmError> {
+        let time_out = AtomicU32::new(0);
+
+        let is_retryable = |err: &LlmError| match err {
+            LlmError::Timeout(_) => {
+                time_out.fetch_add(1, Ordering::Relaxed) + 1 < MAX_TIMEOUT_ATTEMPTS
+            }
+            _ => err.is_retryable(),
+        };
+
         let result = self
             .retry
-            .execute(LlmError::is_retryable, || async {
-                self.invoke_once(&message).await
-            })
+            .execute(is_retryable, || async { self.invoke_once(message).await })
             .await;
 
         match result {
