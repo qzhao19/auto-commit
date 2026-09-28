@@ -585,6 +585,61 @@ async fn c_timed_out_attempts_are_retried_then_exhausted() {
     );
 }
 
+// C: a hung endpoint gets at most MAX_TIMEOUT_ATTEMPTS (3) timed-out
+// attempts no matter how large max_retries is — the raw Timeout surfaces
+// instead of timeout × (max_retries + 1) of wall-clock waiting.
+#[tokio::test(flavor = "current_thread")]
+async fn c_timeout_attempts_capped_independent_of_max_retries() {
+    let server = MockServer::start(vec![], MockBehavior::Hang).await;
+
+    let mut config = with_retry(openai_config(&server.url()), 10);
+    config.resilience.timeout.timeout = Duration::from_millis(100);
+
+    let client = LlmClient::new(&config).expect("client builds");
+    let started = Instant::now();
+    let err = client.invoke(&msg()).await.expect_err("must time out");
+
+    assert!(
+        matches!(err, LlmError::Timeout(_)),
+        "cap must surface the raw Timeout, not RetryExhausted: {err}"
+    );
+    assert_eq!(
+        server.request_count(),
+        3,
+        "MAX_TIMEOUT_ATTEMPTS caps hung attempts regardless of retry budget"
+    );
+    assert!(
+        started.elapsed() < Duration::from_secs(5),
+        "bounded even with max_retries=10"
+    );
+}
+
+// C: the cap doesn't block legitimate recovery — one slow attempt followed
+// by a healthy upstream still succeeds on the second request.
+#[tokio::test(flavor = "current_thread")]
+async fn c_timeout_retry_recovers_after_slow_first_attempt() {
+    let server = MockServer::start(
+        vec![MockBehavior::Hang],
+        MockBehavior::Json {
+            status: 200,
+            body: openai_chat_ok("feat: recovered after a slow attempt"),
+        },
+    )
+    .await;
+
+    let mut config = with_retry(openai_config(&server.url()), 2);
+    config.resilience.timeout.timeout = Duration::from_millis(200);
+
+    let client = LlmClient::new(&config).expect("client builds");
+    let text = client
+        .invoke(&msg())
+        .await
+        .expect("second attempt must succeed");
+
+    assert_eq!(text, "feat: recovered after a slow attempt");
+    assert_eq!(server.request_count(), 2);
+}
+
 // C11: 429 is transient — the retry layer re-fires until success, and the
 // wire shows exactly (failures + 1) requests.
 #[tokio::test(flavor = "current_thread")]
