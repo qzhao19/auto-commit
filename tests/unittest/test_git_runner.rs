@@ -116,10 +116,10 @@ async fn run_nonzero_exit_returns_command_failed() {
         .await
         .unwrap_err();
 
-    assert_eq!(err.code, GitErrorCode::CommandFailed);
+    assert_eq!(err.code(), GitErrorCode::CommandFailed);
     // Message shape: "git command failed with exit code N: git cmd\n<reason>"
     assert!(
-        err.message.contains("git command failed with exit code"),
+        err.message().contains("git command failed with exit code"),
         "got: {err}"
     );
 }
@@ -151,7 +151,7 @@ async fn run_allowed_exit_codes_rejects_unlisted_code() {
     };
 
     let err = runner.run(&["--version"], Some(&allow)).await.unwrap_err();
-    assert_eq!(err.code, GitErrorCode::CommandFailed);
+    assert_eq!(err.code(), GitErrorCode::CommandFailed);
 }
 
 //  run: options layer
@@ -222,9 +222,9 @@ async fn run_command_failed_message_includes_stderr_reason() {
     let runner = GitRunner::new(Some(dir.path().to_path_buf()));
 
     let err = runner.run(&["status"], None).await.unwrap_err();
-    assert_eq!(err.code, GitErrorCode::CommandFailed);
+    assert_eq!(err.code(), GitErrorCode::CommandFailed);
     assert!(
-        err.message.contains("not a git repository"),
+        err.message().contains("not a git repository"),
         "stderr should propagate into message; got: {err}"
     );
 }
@@ -433,7 +433,7 @@ async fn cat_file_header_newline_in_spec_is_rejected() {
         .await
         .unwrap_err();
     assert!(
-        err.message.contains("newline"),
+        err.message().contains("newline"),
         "expected newline guard, got: {err}"
     );
 }

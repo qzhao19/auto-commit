@@ -113,7 +113,11 @@ fn count_category(files: &[StagedFile], category: FileCategory) -> usize {
 }
 
 fn sole_file(snapshot: &ClassifiedSnapshot) -> &StagedFile {
-    assert_eq!(snapshot.files().len(), 1, "expected exactly one staged file");
+    assert_eq!(
+        snapshot.files().len(),
+        1,
+        "expected exactly one staged file"
+    );
     &snapshot.files()[0]
 }
 
@@ -132,7 +136,7 @@ async fn not_a_repository_is_intercepted() {
         .await
         .unwrap_err();
 
-    assert_eq!(err.code, GitErrorCode::NotARepository, "got: {err}");
+    assert_eq!(err.code(), GitErrorCode::NotARepository, "got: {err}");
 }
 
 #[tokio::test]
@@ -145,9 +149,9 @@ async fn bare_repository_is_intercepted() {
         .await
         .unwrap_err();
 
-    assert_eq!(err.code, GitErrorCode::Other, "got: {err}");
+    assert_eq!(err.code(), GitErrorCode::Other, "got: {err}");
     assert!(
-        err.message.contains("bare repository"),
+        err.message().contains("bare repository"),
         "should explain the bare rejection; got: {err}"
     );
 }
@@ -162,9 +166,9 @@ async fn index_lock_is_intercepted() {
         .await
         .unwrap_err();
 
-    assert_eq!(err.code, GitErrorCode::Other, "got: {err}");
+    assert_eq!(err.code(), GitErrorCode::Other, "got: {err}");
     assert!(
-        err.message.contains("index is locked"),
+        err.message().contains("index is locked"),
         "should point at the lock file; got: {err}"
     );
 }
@@ -218,7 +222,7 @@ async fn bisect_state_aborts_with_guidance() {
         .await
         .unwrap_err();
 
-    assert!(err.message.contains("bisect"), "got: {err}");
+    assert!(err.message().contains("bisect"), "got: {err}");
 }
 
 #[tokio::test]
@@ -244,7 +248,7 @@ async fn merge_conflict_aborts_naming_the_operation() {
         .unwrap_err();
 
     assert!(
-        err.message.contains("unresolved conflicts during merge"),
+        err.message().contains("unresolved conflicts during merge"),
         "should name the owning operation; got: {err}"
     );
 }
@@ -273,9 +277,9 @@ async fn conflicts_without_operation_marker_abort_generically() {
         .await
         .unwrap_err();
 
-    assert!(err.message.contains("unresolved conflicts"), "got: {err}");
+    assert!(err.message().contains("unresolved conflicts"), "got: {err}");
     assert!(
-        !err.message.contains(" during "),
+        !err.message().contains(" during "),
         "no owning operation known; got: {err}"
     );
 }
@@ -818,7 +822,10 @@ async fn mixed_categories_route_into_their_lanes() {
                 1
             );
             assert_eq!(count_category(&snapshot.files(), FileCategory::Binary), 1);
-            assert_eq!(count_category(&snapshot.files(), FileCategory::Generated), 1);
+            assert_eq!(
+                count_category(&snapshot.files(), FileCategory::Generated),
+                1
+            );
 
             assert!(payload.body.contains("diff --git a/a.txt"));
             assert!(payload.body.contains("+version = 4"));
@@ -1013,8 +1020,8 @@ async fn clean_tree_is_rejected_as_nothing_to_commit() {
         .await
         .unwrap_err();
 
-    assert_eq!(err.code, GitErrorCode::NothingStaged, "got: {err}");
-    assert!(err.message.contains("nothing to commit"), "got: {err}");
+    assert_eq!(err.code(), GitErrorCode::NothingStaged, "got: {err}");
+    assert!(err.message().contains("nothing to commit"), "got: {err}");
 }
 
 #[tokio::test]
@@ -1029,8 +1036,8 @@ async fn unstaged_modification_is_rejected_with_add_hint() {
         .await
         .unwrap_err();
 
-    assert_eq!(err.code, GitErrorCode::NothingStaged, "got: {err}");
-    assert!(err.message.contains("git add"), "got: {err}");
+    assert_eq!(err.code(), GitErrorCode::NothingStaged, "got: {err}");
+    assert!(err.message().contains("git add"), "got: {err}");
 }
 
 #[tokio::test]
@@ -1045,8 +1052,8 @@ async fn untracked_file_is_rejected_with_add_hint() {
         .await
         .unwrap_err();
 
-    assert_eq!(err.code, GitErrorCode::NothingStaged, "got: {err}");
-    assert!(err.message.contains("git add"), "got: {err}");
+    assert_eq!(err.code(), GitErrorCode::NothingStaged, "got: {err}");
+    assert!(err.message().contains("git add"), "got: {err}");
 }
 
 //  G. path & change-type edges

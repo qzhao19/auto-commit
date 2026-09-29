@@ -73,7 +73,7 @@ async fn not_a_repository_maps_to_not_a_repository_code() {
         .await
         .unwrap_err();
 
-    assert_eq!(err.code, GitErrorCode::NotARepository, "got: {err}");
+    assert_eq!(err.code(), GitErrorCode::NotARepository, "got: {err}");
 }
 
 #[tokio::test]
@@ -87,9 +87,9 @@ async fn bare_repository_is_rejected() {
         .await
         .unwrap_err();
 
-    assert_eq!(err.code, GitErrorCode::Other, "got: {err}");
+    assert_eq!(err.code(), GitErrorCode::Other, "got: {err}");
     assert!(
-        err.message.contains("bare repository"),
+        err.message().contains("bare repository"),
         "should explain the bare rejection; got: {err}"
     );
 }
@@ -111,9 +111,9 @@ async fn index_lock_blocks_preflight() {
         .await
         .unwrap_err();
 
-    assert_eq!(err.code, GitErrorCode::Other, "got: {err}");
+    assert_eq!(err.code(), GitErrorCode::Other, "got: {err}");
     assert!(
-        err.message.contains("index is locked"),
+        err.message().contains("index is locked"),
         "should point at the lock file; got: {err}"
     );
 }
@@ -138,8 +138,8 @@ async fn clean_worktree_reports_nothing_to_commit() {
         .unwrap_or_else(|e| panic!("run() must succeed on a clean worktree, got: {e}"));
 
     let err = preflight.ensure_staged_changes().await.unwrap_err();
-    assert_eq!(err.code, GitErrorCode::NothingStaged, "got: {err}");
-    assert!(err.message.contains("nothing to commit"), "got: {err}");
+    assert_eq!(err.code(), GitErrorCode::NothingStaged, "got: {err}");
+    assert!(err.message().contains("nothing to commit"), "got: {err}");
 }
 
 #[tokio::test]
@@ -157,8 +157,8 @@ async fn unstaged_modification_prompts_git_add() {
         .await
         .unwrap_err();
 
-    assert_eq!(err.code, GitErrorCode::NothingStaged, "got: {err}");
-    assert!(err.message.contains("git add"), "got: {err}");
+    assert_eq!(err.code(), GitErrorCode::NothingStaged, "got: {err}");
+    assert!(err.message().contains("git add"), "got: {err}");
 }
 
 #[tokio::test]
@@ -180,9 +180,9 @@ async fn untracked_file_prompts_git_add() {
         .await
         .unwrap_err();
 
-    assert_eq!(err.code, GitErrorCode::NothingStaged, "got: {err}");
+    assert_eq!(err.code(), GitErrorCode::NothingStaged, "got: {err}");
     assert!(
-        err.message.contains("git add"),
+        err.message().contains("git add"),
         "untracked file must route to the `git add` hint; got: {err}"
     );
 }

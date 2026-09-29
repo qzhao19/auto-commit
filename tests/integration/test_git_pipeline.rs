@@ -286,7 +286,7 @@ fn file_by_path<'a>(snapshot: &'a ClassifiedSnapshot, path: &str) -> &'a StagedF
 
 /// VERIFY: assumes `GitError` Display = message text and `code` is PartialEq.
 fn assert_err(err: &GitError, code: GitErrorCode, needle: &str) {
-    assert_eq!(err.code, code, "unexpected error: {err}");
+    assert_eq!(err.code(), code, "unexpected error: {err}");
     let text = err.to_string();
     assert!(
         text.contains(needle),

@@ -379,7 +379,7 @@ async fn cherry_pick_empty_marker_errors() {
         .await
         .unwrap_err();
 
-    assert!(err.message.contains("present but empty"), "got: {err}");
+    assert!(err.message().contains("present but empty"), "got: {err}");
 }
 
 //  1.5 revert

@@ -120,25 +120,25 @@ fn raw_empty_input() {
 #[test]
 fn raw_truncated_plain_errors() {
     let err = parse_raw_entries(b":100644 100644 a b M\0").unwrap_err();
-    assert!(err.message.contains("truncated"), "got: {err}");
+    assert!(err.message().contains("truncated"), "got: {err}");
 }
 
 #[test]
 fn raw_truncated_rename_errors() {
     let err = parse_raw_entries(b":100644 100644 a b R90\0old.rs\0").unwrap_err();
-    assert!(err.message.contains("rename/copy"), "got: {err}");
+    assert!(err.message().contains("rename/copy"), "got: {err}");
 }
 
 #[test]
 fn raw_unexpected_status_errors() {
     let err = parse_raw_entries(b":100644 100644 a b U\0file.txt\0").unwrap_err();
-    assert!(err.message.contains("unexpected change type"), "got: {err}");
+    assert!(err.message().contains("unexpected change type"), "got: {err}");
 }
 
 #[test]
 fn raw_invalid_similarity_errors() {
     let err = parse_raw_entries(b":100644 100644 a b Rabc\0old.rs\0new.rs\0").unwrap_err();
-    assert!(err.message.contains("similarity"), "got: {err}");
+    assert!(err.message().contains("similarity"), "got: {err}");
 }
 
 #[cfg(unix)]
@@ -219,7 +219,7 @@ fn raw_rename_alignment() {
 fn numstat_path_misalignment_errors() {
     let entries = vec![entry(ChangeType::Modified, "a.txt", None, None)];
     let err = parse_numstat(b"1\t2\tOTHER.txt\0", &entries).unwrap_err();
-    assert!(err.message.contains("misalignment"), "got: {err}");
+    assert!(err.message().contains("misalignment"), "got: {err}");
 }
 
 //  parser: numstat
@@ -299,7 +299,7 @@ fn numstat_short_stream_errors() {
     ];
 
     let err = parse_numstat(b"1\t2\ta.txt\0", &entries).unwrap_err();
-    assert!(err.message.contains("mismatch"), "got: {err}");
+    assert!(err.message().contains("mismatch"), "got: {err}");
 }
 
 #[test]
@@ -310,7 +310,7 @@ fn numstat_extra_records_error() {
     let data = b"1\t2\ta.txt\03\t4\tb.txt\0";
 
     let err = parse_numstat(data, &entries).unwrap_err();
-    assert!(err.message.contains("more records"), "got: {err}");
+    assert!(err.message().contains("more records"), "got: {err}");
 }
 
 //  collector: integration with real git

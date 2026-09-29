@@ -331,8 +331,8 @@ fn from_files_rejects_unknown_category() {
     )])
     .unwrap_err();
 
-    assert_eq!(err.code, GitErrorCode::Other);
-    assert!(err.message.contains("a.rs"));
+    assert_eq!(err.code(), GitErrorCode::Other);
+    assert!(err.message().contains("a.rs"));
 }
 
 #[test]

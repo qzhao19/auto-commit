@@ -132,7 +132,7 @@ async fn phase_a_unknown_without_signal_still_needs_git() {
         .classify(&snapshot_of(vec![staged("main.rs", ChangeType::Added)]))
         .await
         .unwrap_err();
-    assert_eq!(err.code, GitErrorCode::CommandFailed);
+    assert_eq!(err.code(), GitErrorCode::CommandFailed);
 }
 
 /// C-03: Stage 2 owns Submodule / Binary — classify() must never
