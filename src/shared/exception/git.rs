@@ -36,8 +36,8 @@ impl fmt::Display for GitErrorCode {
 
 #[derive(Debug)]
 pub struct GitError {
-    pub code: GitErrorCode,
-    pub message: String,
+    code: GitErrorCode,
+    message: String,
     source: Option<Box<dyn Error + Send + Sync>>,
 }
 
@@ -60,6 +60,15 @@ impl GitError {
             message: message.into(),
             source: Some(Box::new(source)),
         }
+    }
+
+    pub fn code(&self) -> GitErrorCode {
+        self.code
+    }
+
+    #[allow(dead_code)]
+    pub fn message(&self) -> &str {
+        &self.message
     }
 }
 
