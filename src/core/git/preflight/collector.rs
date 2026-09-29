@@ -88,7 +88,7 @@ impl<'a> RepoPreflightCollector<'a> {
                 None,
             )
             .await
-            .map_err(|err| match err.code {
+            .map_err(|err| match err.code() {
                 GitErrorCode::CommandFailed => GitError::new(
                     GitErrorCode::NotARepository,
                     format!("not a git repository: {err}"),
@@ -251,11 +251,6 @@ impl<'a> RepoPreflightCollector<'a> {
 
     fn resolve_git_dir(&self, git_dir_raw: &str) -> Result<PathBuf, GitError> {
         let path = PathBuf::from(git_dir_raw);
-
-        // Make sure an absolute path: '--absolute-git-dir'
-        if path.is_absolute() {
-            return Ok(path);
-        }
 
         if path.is_absolute() {
             Ok(path)
