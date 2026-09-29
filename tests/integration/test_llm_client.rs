@@ -407,6 +407,49 @@ async fn a_ollama_config_reaches_http_and_content_round_trips() {
     );
 }
 
+// A: Ollama options carry the generation params natively — frequency/presence
+// penalty are documented Ollama options (api.md "With options"), forwarded
+// verbatim via `extra`; they must never be dropped or remapped to
+// repeat_penalty.
+#[tokio::test(flavor = "current_thread")]
+async fn a_ollama_generation_params_appear_in_request_options() {
+    let server = MockServer::start(
+        vec![],
+        MockBehavior::Json {
+            status: 200,
+            body: ollama_chat_ok("ok"),
+        },
+    )
+    .await;
+
+    let mut config = ollama_config(&server.url());
+    config.llm.generation.temperature = 0.1;
+    config.llm.generation.top_p = 0.25;
+    config.llm.generation.max_tokens = 123;
+    config.llm.generation.frequency_penalty = 0.5;
+    config.llm.generation.presence_penalty = 0.75;
+
+    LlmClient::new(&config)
+        .expect("client builds")
+        .invoke(&msg())
+        .await
+        .expect("succeeds");
+
+    let body = &server.requests()[0].body;
+    for expected in [
+        "\"temperature\":0.1",
+        "\"top_p\":0.25",
+        "\"num_predict\":123",
+        "\"frequency_penalty\":0.5",
+        "\"presence_penalty\":0.75",
+    ] {
+        assert!(
+            body.contains(expected),
+            "ollama options must contain {expected}: {body}"
+        );
+    }
+}
+
 // B. Unified invoke contract
 
 // B: LlmMessage roles map to chat message roles in both adapters' bodies.
