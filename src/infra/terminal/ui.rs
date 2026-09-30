@@ -3,9 +3,12 @@ use std::io::{self, Write};
 use crossterm::cursor;
 use crossterm::execute;
 use crossterm::terminal;
+use unicode_width::UnicodeWidthChar;
 
 use crate::shared::ui::CandidateView;
 use crate::shared::ui::Ui;
+
+const TAB_STOP: usize = 8;
 
 const TITLE: &str = "Auto Commit Message Generation";
 
@@ -34,8 +37,14 @@ impl TerminalUi {
         let width = match terminal::size() {
             Ok((columns, _)) => (columns as usize).max(1),
             Err(_) => {
+                for _ in 0..self.drawn_rows {
+                    let _ = execute!(
+                        out,
+                        cursor::MoveUp(1),
+                        terminal::Clear(terminal::ClearType::CurrentLine)
+                    );
+                }
                 self.drawn_rows = 0;
-                let _ = write!(out, "{text}");
                 let _ = out.flush();
                 return;
             }
@@ -49,14 +58,12 @@ impl TerminalUi {
             );
         }
 
-        self.drawn_rows = text
-            .strip_suffix("\r\n")
-            .unwrap_or(text)
-            .split("\r\n")
-            .map(|line| line.chars().count().div_ceil(width).max(1))
-            .sum();
-        let _ = write!(out, "{text}");
-        let _ = out.flush();
+        let rows = row_count(text, width);
+        if write!(out, "{text}").and_then(|_| out.flush()).is_err() {
+            self.drawn_rows = 0;
+            return;
+        }
+        self.drawn_rows = rows;
     }
 }
 
@@ -100,4 +107,21 @@ impl Ui for TerminalUi {
             view.position, view.total, indented, options
         ))
     }
+}
+
+fn row_count(text: &str, width: usize) -> usize {
+    text.strip_suffix("\r\n")
+        .unwrap_or(text)
+        .split("\r\n")
+        .map(|line| {
+            let mut col = 0usize;
+            for c in line.chars() {
+                match c {
+                    '\t' => col = (col / TAB_STOP + 1) * TAB_STOP,
+                    _ => col += UnicodeWidthChar::width(c).unwrap_or(0),
+                }
+            }
+            col.div_ceil(width).max(1)
+        })
+        .sum()
 }
