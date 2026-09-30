@@ -49,47 +49,11 @@ impl<'a> OperationStateDetector<'a> {
         Ok(in_progress.unwrap_or(OperationState::Clean))
     }
 
-    // async fn probe_active_operation(
-    //     &self,
-    //     paths: &GitPaths,
-    // ) -> Result<Option<OperationState>, GitError> {
-    //     // 1.2 Rebase
-    //     if Self::path_exists(&paths.rebase_merge).await?
-    //         || Self::path_exists(&paths.rebase_apply).await?
-    //     {
-    //         let message = self.read_rebase_seed(paths).await?;
-    //         return Ok(Some(OperationState::Rebase { message }));
-    //     }
-    //     // 1.3 Merge HEAD
-    //     if Self::path_exists(&paths.merge_head).await? {
-    //         let message = Self::read_msg_file(&paths.merge_msg).await?;
-    //         return Ok(Some(OperationState::Merge { message }));
-    //     }
-    //     // 1.4 Squash: SQUASH_MSG without MERGE_HEAD
-    //     if Self::path_exists(&paths.squash_msg).await? {
-    //         let message = Self::read_msg_file(&paths.squash_msg).await?;
-    //         return Ok(Some(OperationState::Squash { message }));
-    //     }
-    //     // 1.5 Cherry-pick
-    //     if Self::path_exists(&paths.cherry_pick_head).await? {
-    //         let head = Self::read_head_oid(&paths.cherry_pick_head).await?;
-    //         let subject = self.head_subject(&head).await?;
-    //         return Ok(Some(OperationState::CherryPick { head, subject }));
-    //     }
-    //     // Revert
-    //     if Self::path_exists(&paths.revert_head).await? {
-    //         let head = Self::read_head_oid(&paths.revert_head).await?;
-    //         let subject = self.head_subject(&head).await?;
-    //         return Ok(Some(OperationState::Revert { head, subject }));
-    //     }
-    //     Ok(None)
-    // }
-
     async fn probe_active_operation(
         &self,
         paths: &GitPaths,
     ) -> Result<Option<OperationState>, GitError> {
-        // Marker existence checks are independent and all must succeed 
+        // Marker existence checks are independent and all must succeed
         // rebase > merge > squash > cherry-pick > revert
         let (rebase_merge, rebase_apply, merge_head, squash_msg, cherry_pick_head, revert_head) = tokio::try_join!(
             Self::path_exists(&paths.rebase_merge),
